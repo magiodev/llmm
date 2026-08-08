@@ -23,6 +23,3 @@ models:
     source: antirez/deepseek-v4-gguf
     context: 262144
     output: 8192
-model_shelf:
-  command: /opt/model-shelf/bin/model-shelf
-  config: /home/user/.config/model-shelf/config.toml

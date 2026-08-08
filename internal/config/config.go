@@ -15,11 +15,10 @@ import (
 const Version = 1
 
 type Config struct {
-	Version    int                `yaml:"version" json:"version"`
-	Node       string             `yaml:"node,omitempty" json:"node,omitempty"`
-	Runtimes   map[string]Runtime `yaml:"runtimes" json:"runtimes"`
-	Models     map[string]Model   `yaml:"models" json:"models"`
-	ModelShelf *ModelShelf        `yaml:"model_shelf,omitempty" json:"model_shelf,omitempty"`
+	Version  int                `yaml:"version" json:"version"`
+	Node     string             `yaml:"node,omitempty" json:"node,omitempty"`
+	Runtimes map[string]Runtime `yaml:"runtimes" json:"runtimes"`
+	Models   map[string]Model   `yaml:"models" json:"models"`
 }
 
 type Runtime struct {
@@ -39,11 +38,6 @@ type Model struct {
 	Size    int64  `yaml:"size,omitempty" json:"size,omitempty"`
 	Context int    `yaml:"context,omitempty" json:"context,omitempty"`
 	Output  int    `yaml:"output,omitempty" json:"output,omitempty"`
-}
-
-type ModelShelf struct {
-	Command string `yaml:"command" json:"command"`
-	Config  string `yaml:"config" json:"config"`
 }
 
 func Marshal(c *Config, format string) ([]byte, error) {

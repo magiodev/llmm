@@ -223,11 +223,6 @@ func doctorCommand(opts *options) *cobra.Command {
 					check(hashErr == nil && sum == strings.ToLower(model.SHA256), "sha256 "+name, sum)
 				}
 			}
-			if cfg.ModelShelf != nil {
-				_, cmdErr := os.Stat(cfg.ModelShelf.Command)
-				_, confErr := os.Stat(cfg.ModelShelf.Config)
-				check(cmdErr == nil && confErr == nil, "model-shelf", cfg.ModelShelf.Command)
-			}
 			if len(failures) > 0 {
 				return fmt.Errorf("doctor found %d problem(s): %s", len(failures), strings.Join(failures, "; "))
 			}
