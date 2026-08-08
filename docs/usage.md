@@ -33,6 +33,7 @@ git clone https://github.com/magiodev/llmm.git
 cd llmm
 go test ./...
 go build -o llmm ./cmd/llmm
+mkdir -p ~/.local/bin
 install -m 0755 llmm ~/.local/bin/llmm
 ```
 
@@ -96,7 +97,7 @@ llmm config init
 The command:
 
 - creates parent directories with mode `0700`;
-- writes the manifest with mode `0600`;
+- writes the manifest with mode `0600`, including when `--force` replaces a file with broader permissions;
 - validates the starter before writing it;
 - refuses to replace an existing file.
 

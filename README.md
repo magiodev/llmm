@@ -16,7 +16,7 @@
 
 Model servers already have enough moving parts. CUDA, model files, containers, systemd units, API endpoints, context limits, checksums: the information exists, but it tends to be scattered across shell history and half-remembered paths.
 
-`llmm` puts the facts in one strict YAML manifest. It validates the host, reports runtime state, controls existing supervisors, and exports the manifest for trusted clients. It does not install runtimes, download models, wrap APIs, or run in the background.
+`llmm` puts the facts in one strict YAML manifest. It checks declared host prerequisites, reports runtime state, controls existing supervisors, and exports the manifest for trusted clients. It does not install runtimes, download models, wrap APIs, or run in the background.
 
 ```text
 $ llmm status
@@ -100,6 +100,7 @@ git clone https://github.com/magiodev/llmm.git
 cd llmm
 go test ./...
 go build -o llmm ./cmd/llmm
+mkdir -p ~/.local/bin
 install -m 0755 llmm ~/.local/bin/llmm
 ```
 
@@ -158,6 +159,8 @@ llmm models
 ```
 
 The starter file is created with mode `0600`. `config init` refuses to overwrite an existing manifest unless you pass `--force`.
+
+The names, paths, endpoints, limits, size, and checksum above are examples. Replace them with facts from the machine you are declaring; llmm does not install DS4 or create the Docker container for you.
 
 ## Commands
 

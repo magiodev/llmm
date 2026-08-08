@@ -59,7 +59,7 @@ Add this to `~/.ssh/config` on the MacBook:
 ```sshconfig
 Host dgx
   HostName dgx
-  User magiodev
+  User alice
   IdentityFile ~/.ssh/id_dgx
   IdentitiesOnly yes
   ServerAliveInterval 60
@@ -70,8 +70,8 @@ If using a numeric Tailnet address:
 
 ```sshconfig
 Host dgx
-  HostName 100.87.195.52
-  User magiodev
+  HostName 100.64.0.10
+  User alice
   IdentityFile ~/.ssh/id_dgx
   IdentitiesOnly yes
   ServerAliveInterval 60
@@ -264,7 +264,7 @@ models: { ... }
 ### Fetch a fleet inventory
 
 ```bash
-set -e
+set -euo pipefail
 mkdir -p ~/.cache/llmm
 umask 077
 
@@ -283,13 +283,31 @@ Result:
   {
     "version": 1,
     "node": "dgx",
-    "runtimes": {},
-    "models": {}
+    "runtimes": {
+      "ds4": {
+        "type": "systemd",
+        "service": "ds4-server.service",
+        "endpoint": "http://dgx:8001/v1"
+      }
+    },
+    "models": {
+      "deepseek-v4-flash": {
+        "runtime": "ds4",
+        "format": "gguf",
+        "path": "/models/deepseek-v4-flash.gguf"
+      }
+    }
   },
   {
     "version": 1,
     "node": "dgx-2",
-    "runtimes": {},
+    "runtimes": {
+      "vllm": {
+        "type": "systemd",
+        "service": "vllm-server.service",
+        "endpoint": "http://dgx-2:8000/v1"
+      }
+    },
     "models": {}
   }
 ]

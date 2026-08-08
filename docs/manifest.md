@@ -45,7 +45,7 @@ models:
 | `version` | integer | yes | Manifest schema version. The current binary accepts `1`. |
 | `node` | string | no | Stable logical node identity, such as `dgx` or `dgx-2`. |
 | `runtimes` | map | yes | Named runtime declarations. At least one entry is required. |
-| `models` | map | yes | Named model metadata. An empty map is valid. |
+| `models` | map | no | Named model metadata. Omission or an empty map is valid. |
 
 Unknown fields are rejected at every level.
 
@@ -379,7 +379,7 @@ Do not add:
 - secret-bearing URLs;
 - protected environment values.
 
-Use runtime-native secret handling. The manifest is mode `0600` because paths and topology may still be private even without credentials.
+Use runtime-native secret handling. The manifest should be mode `0600` because paths and topology may still be private even without credentials. `llmm config init` enforces that mode for new and force-replaced manifests.
 
 ## Validation examples
 

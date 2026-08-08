@@ -41,6 +41,23 @@ func TestWriteLoadAndKnownFields(t *testing.T) {
 	}
 }
 
+func TestForceWriteRestoresPrivatePermissions(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("stale\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Write(path, validConfig(), true); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("config mode = %o, want 600", got)
+	}
+}
+
 func TestMarshal(t *testing.T) {
 	cfg := validConfig()
 	cfg.Node = "dgx"
