@@ -1,0 +1,27 @@
+version: 1
+runtimes:
+  ds4:
+    type: systemd
+    service: ds4-server.service
+    executable: /opt/ds4/ds4-server
+    endpoint: http://127.0.0.1:8001/v1
+  vllm:
+    type: systemd
+    service: vllm-server.service
+    executable: /opt/vllm/bin/vllm
+    endpoint: http://127.0.0.1:9000/v1
+  open-webui:
+    type: docker
+    container: open-webui
+    endpoint: http://127.0.0.1:8080
+models:
+  deepseek-v4-flash:
+    runtime: ds4
+    format: gguf
+    path: /models/deepseek-v4-flash.gguf
+    source: antirez/deepseek-v4-gguf
+    context: 262144
+    output: 8192
+model_shelf:
+  command: /opt/model-shelf/bin/model-shelf
+  config: /home/user/.config/model-shelf/config.toml
