@@ -46,3 +46,21 @@ func TestUnknownRuntime(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestConfigShowJSON(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	data := "version: 1\nnode: dgx\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\nmodels: {}\n"
+	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cmd := New("test")
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetArgs([]string{"--config", path, "config", "show", "--format", "json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), `"node": "dgx"`) {
+		t.Fatalf("output = %q", output.String())
+	}
+}

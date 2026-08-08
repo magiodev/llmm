@@ -18,6 +18,7 @@ Go 1.22 or newer is required to build from source.
 llmm config init
 $EDITOR ~/.config/llmm/config.yaml
 llmm config validate
+llmm config show
 llmm doctor
 llmm status
 ```
@@ -29,6 +30,7 @@ Use another manifest with `--config PATH` or `LLMM_CONFIG`.
 ```text
 llmm config init [--force]   create a minimal manifest
 llmm config validate         validate syntax and references
+llmm config show             print normalized YAML (`--format json` supported)
 llmm doctor [--deep]         check services, binaries and model files
 llmm models                  list configured models
 llmm status [runtime]        show runtime state
@@ -49,6 +51,17 @@ See [`examples/config.yaml`](examples/config.yaml). Runtime types:
 Model entries are metadata and integrity checks. `llmm` does not invent backend-specific launch flags or duplicate a model downloader.
 
 Configuration is written with mode `0600` because manifests may eventually reference private paths. Do not put credentials in the file; use the runtime's normal secret mechanism.
+
+## Remote clients and clusters
+
+The manifest stays on the machine that owns the runtimes. Clients read it over SSH; no config server or extra daemon is required:
+
+```bash
+ssh dgx '$HOME/.local/bin/llmm config show'
+ssh dgx '$HOME/.local/bin/llmm config show --format json'
+```
+
+Set `node:` to the machine's stable logical name. For a cluster, give every node its own SSH alias and manifest (`dgx`, `dgx-2`, `dgx-3`, …). A client can query each node independently and merge JSON output without sharing credentials.
 
 ## Design
 

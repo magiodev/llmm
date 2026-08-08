@@ -1,4 +1,5 @@
 version: 1
+node: dgx
 runtimes:
   ds4:
     type: systemd

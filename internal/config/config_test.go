@@ -40,3 +40,20 @@ func TestWriteLoadAndKnownFields(t *testing.T) {
 		t.Fatal("expected unknown field rejection")
 	}
 }
+
+func TestMarshal(t *testing.T) {
+	cfg := validConfig()
+	cfg.Node = "dgx"
+	for _, format := range []string{"yaml", "json"} {
+		data, err := Marshal(cfg, format)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(data), "dgx") {
+			t.Fatalf("%s output = %q", format, data)
+		}
+	}
+	if _, err := Marshal(cfg, "toml"); err == nil {
+		t.Fatal("expected unsupported format error")
+	}
+}

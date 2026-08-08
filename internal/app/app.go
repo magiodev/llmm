@@ -42,6 +42,7 @@ func load(opts *options) (*config.Config, error) {
 func configCommand(opts *options) *cobra.Command {
 	command := &cobra.Command{Use: "config", Short: "Create and validate manifests"}
 	var force bool
+	var format string
 	initCommand := &cobra.Command{
 		Use: "init", Short: "Create a minimal starter manifest", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -68,7 +69,28 @@ func configCommand(opts *options) *cobra.Command {
 			return nil
 		},
 	}
-	command.AddCommand(initCommand, validateCommand)
+	showCommand := &cobra.Command{
+		Use: "show", Short: "Print the normalized manifest", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			cfg, err := load(opts)
+			if err != nil {
+				return err
+			}
+			payload, err := config.Marshal(cfg, format)
+			if err != nil {
+				return err
+			}
+			if _, err := cmd.OutOrStdout().Write(payload); err != nil {
+				return err
+			}
+			if len(payload) == 0 || payload[len(payload)-1] != '\n' {
+				fmt.Fprintln(cmd.OutOrStdout())
+			}
+			return nil
+		},
+	}
+	showCommand.Flags().StringVar(&format, "format", "yaml", "output format: yaml or json")
+	command.AddCommand(initCommand, validateCommand, showCommand)
 	return command
 }
 

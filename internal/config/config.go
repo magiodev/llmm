@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -14,34 +15,46 @@ import (
 const Version = 1
 
 type Config struct {
-	Version    int                `yaml:"version"`
-	Runtimes   map[string]Runtime `yaml:"runtimes"`
-	Models     map[string]Model   `yaml:"models"`
-	ModelShelf *ModelShelf        `yaml:"model_shelf,omitempty"`
+	Version    int                `yaml:"version" json:"version"`
+	Node       string             `yaml:"node,omitempty" json:"node,omitempty"`
+	Runtimes   map[string]Runtime `yaml:"runtimes" json:"runtimes"`
+	Models     map[string]Model   `yaml:"models" json:"models"`
+	ModelShelf *ModelShelf        `yaml:"model_shelf,omitempty" json:"model_shelf,omitempty"`
 }
 
 type Runtime struct {
-	Type       string `yaml:"type"`
-	Service    string `yaml:"service,omitempty"`
-	Container  string `yaml:"container,omitempty"`
-	Executable string `yaml:"executable,omitempty"`
-	Endpoint   string `yaml:"endpoint,omitempty"`
+	Type       string `yaml:"type" json:"type"`
+	Service    string `yaml:"service,omitempty" json:"service,omitempty"`
+	Container  string `yaml:"container,omitempty" json:"container,omitempty"`
+	Executable string `yaml:"executable,omitempty" json:"executable,omitempty"`
+	Endpoint   string `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
 }
 
 type Model struct {
-	Runtime string `yaml:"runtime"`
-	Format  string `yaml:"format"`
-	Path    string `yaml:"path"`
-	Source  string `yaml:"source,omitempty"`
-	SHA256  string `yaml:"sha256,omitempty"`
-	Size    int64  `yaml:"size,omitempty"`
-	Context int    `yaml:"context,omitempty"`
-	Output  int    `yaml:"output,omitempty"`
+	Runtime string `yaml:"runtime" json:"runtime"`
+	Format  string `yaml:"format" json:"format"`
+	Path    string `yaml:"path" json:"path"`
+	Source  string `yaml:"source,omitempty" json:"source,omitempty"`
+	SHA256  string `yaml:"sha256,omitempty" json:"sha256,omitempty"`
+	Size    int64  `yaml:"size,omitempty" json:"size,omitempty"`
+	Context int    `yaml:"context,omitempty" json:"context,omitempty"`
+	Output  int    `yaml:"output,omitempty" json:"output,omitempty"`
 }
 
 type ModelShelf struct {
-	Command string `yaml:"command"`
-	Config  string `yaml:"config"`
+	Command string `yaml:"command" json:"command"`
+	Config  string `yaml:"config" json:"config"`
+}
+
+func Marshal(c *Config, format string) ([]byte, error) {
+	switch format {
+	case "yaml":
+		return yaml.Marshal(c)
+	case "json":
+		return json.MarshalIndent(c, "", "  ")
+	default:
+		return nil, fmt.Errorf("unsupported format %q (use yaml or json)", format)
+	}
 }
 
 func DefaultPath() string {
