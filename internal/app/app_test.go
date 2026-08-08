@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"os"
@@ -142,6 +143,18 @@ func TestDoctorDeep(t *testing.T) {
 	}
 	if !strings.Contains(output.String(), "sha256 model") {
 		t.Fatalf("output = %q", output.String())
+	}
+}
+
+func TestFileSHA256HonorsCancellation(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "model.gguf")
+	if err := os.WriteFile(path, []byte("model"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := fileSHA256(ctx, path); err == nil || !strings.Contains(err.Error(), "canceled") {
+		t.Fatalf("error = %v", err)
 	}
 }
 

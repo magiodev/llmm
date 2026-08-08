@@ -19,6 +19,7 @@ import (
 )
 
 const supervisorTimeout = 30 * time.Second
+const deepHashTimeout = 30 * time.Minute
 
 type options struct {
 	configPath string
@@ -245,7 +246,9 @@ func doctorCommand(opts *options) *cobra.Command {
 				}
 				check(ok, "model "+name, detail)
 				if deep && ok && model.SHA256 != "" {
-					sum, hashErr := fileSHA256(model.Path)
+					hashCtx, cancel := context.WithTimeout(cmd.Context(), deepHashTimeout)
+					sum, hashErr := fileSHA256(hashCtx, model.Path)
+					cancel()
 					check(hashErr == nil && sum == strings.ToLower(model.SHA256), "sha256 "+name, sum)
 				}
 			}
@@ -259,15 +262,30 @@ func doctorCommand(opts *options) *cobra.Command {
 	return command
 }
 
-func fileSHA256(path string) (string, error) {
+func fileSHA256(ctx context.Context, path string) (string, error) {
 	file, err := os.Open(filepath.Clean(path))
 	if err != nil {
 		return "", err
 	}
 	defer file.Close()
 	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
-		return "", err
+	buffer := make([]byte, 1024*1024)
+	for {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		count, readErr := file.Read(buffer)
+		if count > 0 {
+			if _, err := hash.Write(buffer[:count]); err != nil {
+				return "", err
+			}
+		}
+		if errors.Is(readErr, io.EOF) {
+			break
+		}
+		if readErr != nil {
+			return "", readErr
+		}
 	}
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }

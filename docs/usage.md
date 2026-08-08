@@ -297,7 +297,7 @@ Failed checks use `fail` and produce a non-zero exit after all checks run.
 llmm doctor --deep
 ```
 
-For each model with `sha256`, this reads the complete file and compares the digest. Large files can take time and consume substantial storage bandwidth. The normal doctor checks size without hashing the whole artifact.
+For each model with `sha256`, this reads the complete file and compares the digest. Large files can take time and consume substantial storage bandwidth; a single hash is capped at 30 minutes. The normal doctor checks size without hashing the whole artifact.
 
 Deep mode does not fail models that omit `sha256`; it simply has no digest to verify.
 
