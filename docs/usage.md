@@ -1,0 +1,489 @@
+# Usage and operations
+
+This guide covers installation, configuration selection, every command, normal operating workflows, shell completion, exit behavior, and troubleshooting.
+
+## Requirements
+
+Building llmm requires Go 1.22 or newer. Runtime requirements depend on the manifest:
+
+- `systemd` entries need a user systemd session and `systemctl`.
+- `docker` entries need the Docker CLI and access to the Docker daemon.
+- Remote consumption needs an SSH server on the node and an authenticated SSH client.
+
+llmm does not install any of these prerequisites.
+
+## Installation
+
+### Install with Go
+
+```bash
+go install github.com/magiodev/llmm/cmd/llmm@latest
+```
+
+Go normally installs the binary into `$(go env GOPATH)/bin`. Ensure that directory is on `PATH`:
+
+```bash
+export PATH="$(go env GOPATH)/bin:$PATH"
+```
+
+### Build from source
+
+```bash
+git clone https://github.com/magiodev/llmm.git
+cd llmm
+go test ./...
+go build -o llmm ./cmd/llmm
+install -m 0755 llmm ~/.local/bin/llmm
+```
+
+### Cross-compile for Linux ARM64
+
+This is useful when building on an x86-64 workstation for a GB10 or another ARM64 node:
+
+```bash
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+  go build -o llmm-linux-arm64 ./cmd/llmm
+scp llmm-linux-arm64 dgx:/tmp/llmm
+ssh dgx 'install -m 0755 /tmp/llmm "$HOME/.local/bin/llmm" && rm /tmp/llmm'
+```
+
+The current code does not require CGO.
+
+### Verify the binary
+
+```bash
+llmm --version
+llmm --help
+```
+
+A binary built without an injected version may report `dev`. Release or deployment builds can set the main package version with `-ldflags`.
+
+## Config selection
+
+llmm chooses the manifest in this order:
+
+1. `--config PATH` on the command line;
+2. `LLMM_CONFIG` in the environment;
+3. the operating system's user config directory plus `llmm/config.yaml`.
+
+On Linux, the normal default is:
+
+```text
+~/.config/llmm/config.yaml
+```
+
+Examples:
+
+```bash
+llmm --config ./lab.yaml status
+LLMM_CONFIG=./lab.yaml llmm doctor
+llmm status
+```
+
+`--config` is a persistent flag, so it goes before or after a subcommand:
+
+```bash
+llmm --config ./lab.yaml status
+llmm status --config ./lab.yaml
+```
+
+## Create a manifest
+
+```bash
+llmm config init
+```
+
+The command:
+
+- creates parent directories with mode `0700`;
+- writes the manifest with mode `0600`;
+- validates the starter before writing it;
+- refuses to replace an existing file.
+
+To deliberately replace an existing manifest:
+
+```bash
+llmm config init --force
+```
+
+`--force` destroys the existing manifest at the selected path. Review `--config` and `LLMM_CONFIG` first.
+
+The generated manifest is intentionally minimal. Edit it to describe services, containers, and model files that already exist.
+
+## Validate configuration
+
+```bash
+llmm config validate
+```
+
+Validation checks:
+
+- YAML syntax;
+- unknown fields;
+- schema version;
+- presence of at least one runtime;
+- supported runtime types;
+- required `service` or `container` fields;
+- model-to-runtime references;
+- required model paths.
+
+It does not inspect the host. Use `doctor` for that.
+
+A successful result is:
+
+```text
+config: ok
+```
+
+Any validation problem produces a non-zero exit. Several semantic problems are sorted and returned together so they can be fixed in one pass.
+
+## Export normalized configuration
+
+YAML:
+
+```bash
+llmm config show
+```
+
+JSON:
+
+```bash
+llmm config show --format json
+```
+
+The command parses and validates before producing output. It therefore doubles as a safe consumer boundary: downstream clients never need to parse an unchecked source file.
+
+Unsupported formats fail explicitly:
+
+```bash
+llmm config show --format toml
+# unsupported format "toml" (use yaml or json)
+```
+
+Typical JSON queries:
+
+```bash
+llmm config show --format json | jq -r '.node'
+llmm config show --format json | jq -r '.runtimes.ds4.endpoint'
+llmm config show --format json | jq -r '.models | keys[]'
+llmm config show --format json | jq '.models["deepseek-v4-flash"] | {context, output}'
+```
+
+## Inspect runtime status
+
+Show every runtime:
+
+```bash
+llmm status
+```
+
+Show one runtime:
+
+```bash
+llmm status ds4
+```
+
+Example:
+
+```text
+ds4              active
+open-webui       running
+```
+
+Status meanings come from the native supervisor:
+
+- systemd: output of `systemctl --user is-active`;
+- Docker: `.State.Status` from `docker inspect`;
+- supervisor errors or missing objects: `inactive`;
+- unsupported runtime type: `invalid`.
+
+`active` or `running` means the supervisor sees a live workload. It does not prove that a model has finished loading or that an HTTP endpoint is healthy.
+
+## Control runtimes
+
+```bash
+llmm start ds4
+llmm stop ds4
+llmm restart ds4
+```
+
+For systemd entries, llmm executes:
+
+```text
+systemctl --user <action> <service>
+```
+
+For Docker entries, it executes:
+
+```text
+docker <action> <container>
+```
+
+The runtime name must exist in the manifest. Shell completion can suggest valid names.
+
+Errors include the failed native command and its combined output. llmm does not retry, hide, or reinterpret supervisor failures.
+
+### Readiness after start or restart
+
+Model loading may take minutes. Check supervisor state first, then probe the actual API:
+
+```bash
+llmm restart ds4
+llmm status ds4
+
+until curl -fsS http://dgx:8001/v1/models >/dev/null; do
+  sleep 5
+done
+```
+
+Use the runtime's real readiness endpoint when it provides one. Do not route client traffic based only on `llmm status`.
+
+## List models
+
+```bash
+llmm models
+```
+
+Output is tab-separated:
+
+```text
+deepseek-v4-flash	ds4	/models/deepseek-v4-flash.gguf
+```
+
+The columns are:
+
+1. model ID;
+2. configured runtime;
+3. local artifact path.
+
+Models are sorted by ID for stable output.
+
+## Run diagnostics
+
+```bash
+llmm doctor
+```
+
+The normal doctor checks:
+
+- the manifest loaded and validated;
+- each declared executable exists and is not a directory;
+- each systemd service is loaded;
+- the Docker CLI exists for Docker runtimes;
+- each model path exists and is a regular file;
+- declared model size matches the file size.
+
+Example:
+
+```text
+ok    config                   /home/alice/.config/llmm/config.yaml
+ok    runtime ds4              /opt/ds4/ds4-server
+ok    service ds4              ds4-server.service
+ok    docker open-webui        open-webui
+ok    model deepseek-v4-flash  /models/deepseek-v4-flash.gguf (86720111488 bytes)
+```
+
+Failed checks use `fail` and produce a non-zero exit after all checks run.
+
+### Deep integrity check
+
+```bash
+llmm doctor --deep
+```
+
+For each model with `sha256`, this reads the complete file and compares the digest. Large files can take time and consume substantial storage bandwidth. The normal doctor checks size without hashing the whole artifact.
+
+Deep mode does not fail models that omit `sha256`; it simply has no digest to verify.
+
+### What doctor does not check
+
+Doctor does not:
+
+- send HTTP requests to `endpoint`;
+- assert that services are active;
+- inspect GPU or unified memory;
+- validate backend-specific model compatibility;
+- install missing commands;
+- inspect independent tools such as Model Shelf;
+- check credentials.
+
+Pair doctor with `status` and a real API probe when validating a deployment.
+
+## Quiet mode
+
+The global `--quiet` or `-q` flag suppresses confirmation output for commands that explicitly support it, including successful config initialization, validation, and lifecycle actions. Errors still print and retain non-zero exits.
+
+Commands whose main purpose is output, such as `status`, `models`, `doctor`, and `config show`, continue to print their results.
+
+Examples:
+
+```bash
+llmm -q config validate
+llmm -q restart ds4
+```
+
+## Shell completion
+
+Cobra provides completion scripts for Bash, Zsh, Fish, and PowerShell.
+
+### Bash
+
+Current shell:
+
+```bash
+source <(llmm completion bash)
+```
+
+Persistent user installation:
+
+```bash
+mkdir -p ~/.local/share/bash-completion/completions
+llmm completion bash > ~/.local/share/bash-completion/completions/llmm
+```
+
+### Zsh
+
+```bash
+mkdir -p ~/.zfunc
+llmm completion zsh > ~/.zfunc/_llmm
+```
+
+Ensure `~/.zfunc` is in `fpath` before `compinit`.
+
+### Fish
+
+```bash
+mkdir -p ~/.config/fish/completions
+llmm completion fish > ~/.config/fish/completions/llmm.fish
+```
+
+Runtime action completion reads the selected manifest and suggests configured runtime names.
+
+## Operational workflows
+
+### Validate after editing
+
+```bash
+llmm config validate
+llmm doctor
+llmm status
+```
+
+Then probe every endpoint that matters.
+
+### Add an existing runtime
+
+1. Install and verify the runtime independently.
+2. Create its systemd user service or Docker container.
+3. Add the runtime to `runtimes`.
+4. Add any model metadata to `models`.
+5. Run `config validate` and `doctor`.
+6. Start or restart through llmm.
+7. Probe the API.
+
+### Move a model file
+
+1. Stop or otherwise make the runtime safe to reconfigure.
+2. Move the artifact.
+3. Update the runtime's native configuration.
+4. Update `models.<id>.path` and, if needed, `size` and `sha256`.
+5. Run `llmm doctor --deep`.
+6. Start the runtime and probe readiness.
+
+llmm does not modify native service files for you.
+
+### Use a temporary manifest
+
+```bash
+cp ~/.config/llmm/config.yaml /tmp/llmm-test.yaml
+$EDITOR /tmp/llmm-test.yaml
+llmm --config /tmp/llmm-test.yaml config validate
+llmm --config /tmp/llmm-test.yaml doctor
+```
+
+Do not run lifecycle commands against a temporary manifest until you have verified every target service or container.
+
+## Troubleshooting
+
+### `read config: no such file or directory`
+
+Check the selected path:
+
+```bash
+printf '%s\n' "${LLMM_CONFIG:-$HOME/.config/llmm/config.yaml}"
+llmm config init
+```
+
+Also check whether a global `--config` flag is pointing elsewhere.
+
+### `field ... not found in type config.Config`
+
+The parser is strict. Remove the unknown field or use the schema version that supports it. This usually catches a typo or documentation drift.
+
+### `version must be 1`
+
+The file targets a schema version unsupported by this binary. Upgrade the binary or migrate the manifest deliberately. Do not change the number without checking field compatibility.
+
+### `runtime ... requires service`
+
+A `systemd` runtime needs `service`. A `docker` runtime needs `container`.
+
+### `model ... references unknown runtime`
+
+The model's `runtime` value must exactly match a key under `runtimes`.
+
+### Status says `inactive` but the service exists
+
+Run the native supervisor command for detail:
+
+```bash
+systemctl --user status ds4-server.service
+docker inspect open-webui
+```
+
+llmm keeps status output compact and maps supervisor errors to `inactive`.
+
+### Service is active but the API fails
+
+The process may still be loading its model, may have bound a different address, or may have failed after systemd considered it started. Inspect logs and probe the declared endpoint:
+
+```bash
+journalctl --user -u ds4-server.service -n 100 --no-pager
+curl -fsS http://dgx:8001/v1/models
+```
+
+### Docker doctor passes but the container is missing
+
+Doctor currently checks Docker availability, while `status` checks the named container. Run:
+
+```bash
+llmm status open-webui
+docker inspect open-webui
+```
+
+### Deep checksum fails
+
+Verify that the configured digest belongs to the exact artifact:
+
+```bash
+sha256sum /models/deepseek-v4-flash.gguf
+```
+
+A size match is not a checksum match. Update the manifest only after confirming that the new artifact is intentional.
+
+## Exit behavior for scripts
+
+Use command exit status rather than parsing human text when deciding success:
+
+```bash
+if llmm config validate >/dev/null; then
+  echo valid
+else
+  echo invalid >&2
+  exit 1
+fi
+```
+
+`config show --format json` is the preferred input for programs. Human-oriented `status`, `models`, and `doctor` output may evolve.
+
+For remote consumption and multi-node examples, continue with [remote-clients.md](remote-clients.md). For every manifest field, see [manifest.md](manifest.md).

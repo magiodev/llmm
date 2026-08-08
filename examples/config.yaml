@@ -5,16 +5,16 @@ runtimes:
     type: systemd
     service: ds4-server.service
     executable: /opt/ds4/ds4-server
-    endpoint: http://127.0.0.1:8001/v1
+    endpoint: http://dgx:8001/v1
   vllm:
     type: systemd
     service: vllm-server.service
     executable: /opt/vllm/bin/vllm
-    endpoint: http://127.0.0.1:9000/v1
+    endpoint: http://dgx:9000/v1
   open-webui:
     type: docker
     container: open-webui
-    endpoint: http://127.0.0.1:8080
+    endpoint: http://dgx:8080
 models:
   deepseek-v4-flash:
     runtime: ds4
