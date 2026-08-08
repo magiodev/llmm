@@ -131,22 +131,7 @@ runtimes:
     service: ds4-server.service
     executable: /opt/ds4/ds4-server
     endpoint: http://dgx:8001/v1
-
-  open-webui:
-    type: docker
-    container: open-webui
-    endpoint: http://dgx:8080
-
-models:
-  deepseek-v4-flash:
-    runtime: ds4
-    format: gguf
-    path: /models/deepseek-v4-flash.gguf
-    source: antirez/deepseek-v4-gguf
-    sha256: ca22ae2f838e14077c22bc1c1417b71b45b5e5a3687bd96c2ac6e17fdb6261c0
-    size: 86720111488
-    context: 262144
-    output: 8192
+models: {}
 ```
 
 Then validate the declaration against the machine:
@@ -160,7 +145,7 @@ llmm models
 
 The starter file is created with mode `0600`. `config init` refuses to overwrite an existing manifest unless you pass `--force`.
 
-The names, paths, endpoints, limits, size, and checksum above are examples. Replace them with facts from the machine you are declaring; llmm does not install DS4 or create the Docker container for you.
+Replace the example with facts from the machine you are declaring. A complete manifest is in [`examples/config.yaml`](examples/config.yaml); llmm does not install runtimes or create containers for you.
 
 ## Commands
 
@@ -250,7 +235,7 @@ docker start|stop|restart <container>
 - Use Tailscale or another private network for remote endpoints.
 - Give each client its own SSH key. Do not copy one private key between machines.
 - Treat `config show` output as operational metadata. Transport it over authenticated SSH.
-- Review lifecycle access carefully: anyone who can run llmm on a node can start or stop its configured workloads.
+- Review lifecycle access carefully: anyone who can read the manifest and access its systemd-user manager or Docker daemon can control those workloads through llmm.
 
 ## Project layout
 

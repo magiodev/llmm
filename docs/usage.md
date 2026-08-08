@@ -98,6 +98,8 @@ The command:
 
 - creates parent directories with mode `0700`;
 - writes the manifest with mode `0600`, including when `--force` replaces a file with broader permissions;
+- writes through a same-directory temporary file and atomically installs it;
+- rejects symlink destinations;
 - validates the starter before writing it;
 - refuses to replace an existing file.
 
@@ -126,7 +128,11 @@ Validation checks:
 - supported runtime types;
 - required `service` or `container` fields;
 - model-to-runtime references;
-- required model paths.
+- required model paths;
+- one YAML document only;
+- non-negative model limits and valid SHA-256 syntax;
+- absolute credential-free endpoints;
+- supervisor-specific fields and identifiers.
 
 It does not inspect the host. Use `doctor` for that.
 
@@ -195,8 +201,7 @@ Status meanings come from the native supervisor:
 
 - systemd: output of `systemctl --user is-active`;
 - Docker: `.State.Status` from `docker inspect`;
-- supervisor errors or missing objects: `inactive`;
-- unsupported runtime type: `invalid`.
+- supervisor errors or missing objects: command failure and a non-zero llmm exit.
 
 `active` or `running` means the supervisor sees a live workload. It does not prove that a model has finished loading or that an HTTP endpoint is healthy.
 
@@ -222,7 +227,7 @@ docker <action> <container>
 
 The runtime name must exist in the manifest. Shell completion can suggest valid names.
 
-Errors include the failed native command and its combined output. llmm does not retry, hide, or reinterpret supervisor failures.
+Errors include the failed native command and its combined output. Supervisor commands time out after 30 seconds. llmm does not retry or hide supervisor failures.
 
 ### Readiness after start or restart
 
@@ -268,9 +273,9 @@ llmm doctor
 The normal doctor checks:
 
 - the manifest loaded and validated;
-- each declared executable exists and is not a directory;
+- each declared executable is a regular file with an execute bit;
 - each systemd service is loaded;
-- the Docker CLI exists for Docker runtimes;
+- each declared Docker container is inspectable;
 - each model path exists and is a regular file;
 - declared model size matches the file size.
 
@@ -325,40 +330,15 @@ llmm -q restart ds4
 
 ## Shell completion
 
-Cobra provides completion scripts for Bash, Zsh, Fish, and PowerShell.
-
-### Bash
-
-Current shell:
+Cobra provides completion for Bash, Zsh, Fish, and PowerShell:
 
 ```bash
 source <(llmm completion bash)
-```
-
-Persistent user installation:
-
-```bash
-mkdir -p ~/.local/share/bash-completion/completions
-llmm completion bash > ~/.local/share/bash-completion/completions/llmm
-```
-
-### Zsh
-
-```bash
-mkdir -p ~/.zfunc
 llmm completion zsh > ~/.zfunc/_llmm
-```
-
-Ensure `~/.zfunc` is in `fpath` before `compinit`.
-
-### Fish
-
-```bash
-mkdir -p ~/.config/fish/completions
 llmm completion fish > ~/.config/fish/completions/llmm.fish
 ```
 
-Runtime action completion reads the selected manifest and suggests configured runtime names.
+Create the destination directory first for persistent files. Runtime action completion reads the selected manifest and suggests configured runtime names.
 
 ## Operational workflows
 
@@ -442,7 +422,7 @@ systemctl --user status ds4-server.service
 docker inspect open-webui
 ```
 
-llmm keeps status output compact and maps supervisor errors to `inactive`.
+llmm keeps status output compact but returns native supervisor failures instead of presenting them as normal inactivity.
 
 ### Service is active but the API fails
 
@@ -453,9 +433,9 @@ journalctl --user -u ds4-server.service -n 100 --no-pager
 curl -fsS http://dgx:8001/v1/models
 ```
 
-### Docker doctor passes but the container is missing
+### Docker doctor fails
 
-Doctor currently checks Docker availability, while `status` checks the named container. Run:
+Doctor inspects the named container. Use the native command to distinguish a missing CLI, daemon failure, permission problem, or missing container:
 
 ```bash
 llmm status open-webui

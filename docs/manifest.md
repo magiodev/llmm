@@ -45,7 +45,7 @@ models:
 | `version` | integer | yes | Manifest schema version. The current binary accepts `1`. |
 | `node` | string | no | Stable logical node identity, such as `dgx` or `dgx-2`. |
 | `runtimes` | map | yes | Named runtime declarations. At least one entry is required. |
-| `models` | map | no | Named model metadata. Omission or an empty map is valid. |
+| `models` | map | no | Named model metadata. Omission or an empty map normalizes to an empty map. |
 
 Unknown fields are rejected at every level.
 
@@ -104,14 +104,15 @@ Runtime names:
 - are suggested by shell completion;
 - are referenced by models;
 - should remain stable even when an executable path changes.
+- must not be empty.
 
 ### Runtime fields
 
 | Field | Type | Required | Meaning |
 |---|---|---:|---|
 | `type` | string | yes | Native supervisor type: `systemd` or `docker`. |
-| `service` | string | for `systemd` | User systemd unit name. |
-| `container` | string | for `docker` | Existing Docker container name or ID. |
+| `service` | string | for `systemd` | User systemd unit name; invalid for Docker and may not start with `-`. |
+| `container` | string | for `docker` | Existing Docker container name or ID; invalid for systemd and may not start with `-`. |
 | `executable` | string | no | Host executable expected by `doctor`. |
 | `endpoint` | string | no | Advertised client endpoint. Exported but not probed. |
 
@@ -136,7 +137,7 @@ systemctl --user restart ds4-server.service
 
 Doctor checks that:
 
-- `executable`, when supplied, exists and is not a directory;
+- `executable`, when supplied, is a regular file with an execute bit;
 - systemd reports the unit's `LoadState` as `loaded`.
 
 Status uses `systemctl --user is-active`.
@@ -161,7 +162,7 @@ docker stop open-webui
 docker restart open-webui
 ```
 
-Doctor checks that the Docker CLI is available. Status checks the configured container with `docker inspect` and reports `.State.Status`.
+Doctor verifies the configured container with `docker inspect`. Status reports `.State.Status`. Both fail when the CLI, daemon, permissions, or container are unavailable.
 
 llmm does not create containers, run Compose, pull images, or edit container configuration.
 
@@ -181,9 +182,8 @@ The field does not change how lifecycle commands work. systemd or Docker remains
 endpoint: http://dgx:8001/v1
 ```
 
-`endpoint` tells clients where the runtime is intended to be reached. llmm serializes it in YAML and JSON but does not:
+`endpoint` tells clients where the runtime is intended to be reached. When present, it must be an absolute URL without embedded credentials. llmm serializes it in YAML and JSON but does not:
 
-- validate the URL;
 - send a health request;
 - add authentication;
 - open a firewall;
@@ -196,7 +196,7 @@ Do not embed credentials in the URL.
 
 ## `models`
 
-`models` is a map keyed by the stable served model ID:
+`models` is a map keyed by the stable served model ID. Model IDs must not be empty:
 
 ```yaml
 models:
@@ -219,10 +219,10 @@ models:
 | `format` | string | no | Artifact format such as `gguf` or `safetensors`. |
 | `path` | string | yes | Local artifact path checked by doctor. |
 | `source` | string | no | Human-readable source repository or provenance. |
-| `sha256` | string | no | Expected digest used by `doctor --deep`. |
-| `size` | integer | no | Expected bytes used by normal doctor. |
-| `context` | integer | no | Advertised context-window limit. |
-| `output` | integer | no | Advertised output-token limit. |
+| `sha256` | string | no | Expected 64-character hexadecimal digest used by `doctor --deep`. |
+| `size` | integer | no | Expected bytes used by normal doctor; may not be negative. |
+| `context` | integer | no | Advertised context-window limit; may not be negative. |
+| `output` | integer | no | Advertised output-token limit; may not be negative. |
 
 ### `runtime`
 
@@ -248,7 +248,7 @@ format: gguf
 path: /models/deepseek-v4-flash.gguf
 ```
 
-Doctor requires this path to exist and be a regular file. Prefer absolute paths so behavior does not depend on the working directory.
+Doctor requires this path to exist and be a regular file. FIFOs, sockets, devices, and directories fail. Prefer absolute paths so behavior does not depend on the working directory.
 
 For sharded models, version 1 expects one path per model entry and has no shard-set abstraction. Do not invent a fake aggregate path. Either point to a concrete artifact used by your runtime or omit that model until the schema supports the real representation.
 
@@ -266,7 +266,7 @@ Use this for provenance that helps an operator identify the artifact. It may be 
 sha256: ca22ae2f838e14077c22bc1c1417b71b45b5e5a3687bd96c2ac6e17fdb6261c0
 ```
 
-`doctor --deep` hashes the complete file and compares a lowercase digest. Normal doctor does not hash model files.
+Validation requires exactly 64 hexadecimal characters. `doctor --deep` hashes the complete file and compares a lowercase digest. Normal doctor does not hash model files.
 
 A checksum is useful when:
 

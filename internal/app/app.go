@@ -1,7 +1,9 @@
 package app
 
 import (
+	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -9,11 +11,14 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/magiodev/llmm/internal/config"
 	runtimeops "github.com/magiodev/llmm/internal/runtime"
 	"github.com/spf13/cobra"
 )
+
+const supervisorTimeout = 30 * time.Second
 
 type options struct {
 	configPath string
@@ -30,13 +35,9 @@ func New(version string) *cobra.Command {
 		Version:       version,
 	}
 	root.PersistentFlags().StringVar(&opts.configPath, "config", config.DefaultPath(), "path to config file")
-	root.PersistentFlags().BoolVarP(&opts.quiet, "quiet", "q", false, "only print errors")
+	root.PersistentFlags().BoolVarP(&opts.quiet, "quiet", "q", false, "suppress confirmation output")
 	root.AddCommand(configCommand(opts), doctorCommand(opts), statusCommand(opts), actionCommand(opts, "start"), actionCommand(opts, "stop"), actionCommand(opts, "restart"), modelsCommand(opts))
 	return root
-}
-
-func load(opts *options) (*config.Config, error) {
-	return config.Load(opts.configPath)
 }
 
 func configCommand(opts *options) *cobra.Command {
@@ -60,7 +61,7 @@ func configCommand(opts *options) *cobra.Command {
 	validateCommand := &cobra.Command{
 		Use: "validate", Short: "Validate the manifest", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if _, err := load(opts); err != nil {
+			if _, err := config.Load(opts.configPath); err != nil {
 				return err
 			}
 			if !opts.quiet {
@@ -72,7 +73,7 @@ func configCommand(opts *options) *cobra.Command {
 	showCommand := &cobra.Command{
 		Use: "show", Short: "Print the normalized manifest", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, err := load(opts)
+			cfg, err := config.Load(opts.configPath)
 			if err != nil {
 				return err
 			}
@@ -98,14 +99,14 @@ func actionCommand(opts *options, action string) *cobra.Command {
 	return &cobra.Command{
 		Use: action + " <runtime>", Short: strings.ToUpper(action[:1]) + action[1:] + " a runtime", Args: cobra.ExactArgs(1),
 		ValidArgsFunction: func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-			cfg, err := load(opts)
+			cfg, err := config.Load(opts.configPath)
 			if err != nil {
 				return nil, cobra.ShellCompDirectiveError
 			}
 			return runtimeops.Names(cfg), cobra.ShellCompDirectiveNoFileComp
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := load(opts)
+			cfg, err := config.Load(opts.configPath)
 			if err != nil {
 				return err
 			}
@@ -113,11 +114,17 @@ func actionCommand(opts *options, action string) *cobra.Command {
 			if !ok {
 				return fmt.Errorf("unknown runtime %q", args[0])
 			}
-			if err := runtimeops.Action(rt, action); err != nil {
+			ctx, cancel := context.WithTimeout(cmd.Context(), supervisorTimeout)
+			defer cancel()
+			if err := runtimeops.Action(ctx, rt, action); err != nil {
 				return err
 			}
 			if !opts.quiet {
-				fmt.Fprintf(cmd.OutOrStdout(), "%s: %s\n", args[0], runtimeops.Status(rt))
+				state, err := runtimeops.Status(ctx, rt)
+				if err != nil {
+					return err
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "%s: %s\n", args[0], state)
 			}
 			return nil
 		},
@@ -128,7 +135,7 @@ func statusCommand(opts *options) *cobra.Command {
 	return &cobra.Command{
 		Use: "status [runtime]", Short: "Show runtime status", Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := load(opts)
+			cfg, err := config.Load(opts.configPath)
 			if err != nil {
 				return err
 			}
@@ -139,8 +146,20 @@ func statusCommand(opts *options) *cobra.Command {
 				}
 				names = args
 			}
+			var failures []string
 			for _, name := range names {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-16s %s\n", name, runtimeops.Status(cfg.Runtimes[name]))
+				ctx, cancel := context.WithTimeout(cmd.Context(), supervisorTimeout)
+				state, statusErr := runtimeops.Status(ctx, cfg.Runtimes[name])
+				cancel()
+				if statusErr != nil {
+					fmt.Fprintf(cmd.OutOrStdout(), "%-16s error\n", name)
+					failures = append(failures, name+": "+statusErr.Error())
+					continue
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "%-16s %s\n", name, state)
+			}
+			if len(failures) > 0 {
+				return errors.New(strings.Join(failures, "; "))
 			}
 			return nil
 		},
@@ -151,7 +170,7 @@ func modelsCommand(opts *options) *cobra.Command {
 	return &cobra.Command{
 		Use: "models", Short: "List configured models", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, err := load(opts)
+			cfg, err := config.Load(opts.configPath)
 			if err != nil {
 				return err
 			}
@@ -174,7 +193,7 @@ func doctorCommand(opts *options) *cobra.Command {
 	command := &cobra.Command{
 		Use: "doctor", Short: "Validate config, runtimes, executables, and model files", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, err := load(opts)
+			cfg, err := config.Load(opts.configPath)
 			if err != nil {
 				return err
 			}
@@ -192,16 +211,23 @@ func doctorCommand(opts *options) *cobra.Command {
 				rt := cfg.Runtimes[name]
 				if rt.Executable != "" {
 					info, statErr := os.Stat(rt.Executable)
-					check(statErr == nil && !info.IsDir(), "runtime "+name, rt.Executable)
+					ok := statErr == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0
+					check(ok, "runtime "+name, rt.Executable)
 				}
-				if rt.Type == "systemd" {
-					out, unitErr := exec.Command("systemctl", "--user", "show", rt.Service, "--property=LoadState", "--value").Output()
+				ctx, cancel := context.WithTimeout(cmd.Context(), supervisorTimeout)
+				switch rt.Type {
+				case "systemd":
+					out, unitErr := exec.CommandContext(ctx, "systemctl", "--user", "show", "--property=LoadState", "--value", "--", rt.Service).CombinedOutput()
 					check(unitErr == nil && strings.TrimSpace(string(out)) == "loaded", "service "+name, rt.Service)
+				case "docker":
+					out, dockerErr := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{.Name}}", "--", rt.Container).CombinedOutput()
+					detail := rt.Container
+					if dockerErr != nil && strings.TrimSpace(string(out)) != "" {
+						detail += ": " + strings.TrimSpace(string(out))
+					}
+					check(dockerErr == nil, "docker "+name, detail)
 				}
-				if rt.Type == "docker" {
-					_, dockerErr := exec.LookPath("docker")
-					check(dockerErr == nil, "docker "+name, rt.Container)
-				}
+				cancel()
 			}
 			modelNames := make([]string, 0, len(cfg.Models))
 			for name := range cfg.Models {
@@ -211,7 +237,7 @@ func doctorCommand(opts *options) *cobra.Command {
 			for _, name := range modelNames {
 				model := cfg.Models[name]
 				info, statErr := os.Stat(model.Path)
-				ok := statErr == nil && !info.IsDir()
+				ok := statErr == nil && info.Mode().IsRegular()
 				detail := model.Path
 				if ok && model.Size > 0 {
 					ok = info.Size() == model.Size

@@ -1,9 +1,13 @@
 package config
 
 import (
+	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -41,6 +45,7 @@ type Model struct {
 }
 
 func Marshal(c *Config, format string) ([]byte, error) {
+	c.normalize()
 	switch format {
 	case "yaml":
 		return yaml.Marshal(c)
@@ -68,18 +73,36 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
 	var cfg Config
-	dec := yaml.NewDecoder(strings.NewReader(string(data)))
+	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(&cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
+	var trailing any
+	if err := dec.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err != nil {
+			return nil, fmt.Errorf("parse trailing document: %w", err)
+		}
+		return nil, errors.New("multiple YAML documents are not supported")
+	}
+	cfg.normalize()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	return &cfg, nil
 }
 
+func (c *Config) normalize() {
+	if c.Runtimes == nil {
+		c.Runtimes = map[string]Runtime{}
+	}
+	if c.Models == nil {
+		c.Models = map[string]Model{}
+	}
+}
+
 func (c *Config) Validate() error {
+	c.normalize()
 	var problems []string
 	if c.Version != Version {
 		problems = append(problems, fmt.Sprintf("version must be %d", Version))
@@ -88,25 +111,64 @@ func (c *Config) Validate() error {
 		problems = append(problems, "at least one runtime is required")
 	}
 	for name, runtime := range c.Runtimes {
+		if strings.TrimSpace(name) == "" {
+			problems = append(problems, "runtime name must not be empty")
+		}
 		switch runtime.Type {
 		case "systemd":
 			if runtime.Service == "" {
 				problems = append(problems, fmt.Sprintf("runtime %q requires service", name))
+			} else if strings.HasPrefix(runtime.Service, "-") {
+				problems = append(problems, fmt.Sprintf("runtime %q service must not start with '-'", name))
+			}
+			if runtime.Container != "" {
+				problems = append(problems, fmt.Sprintf("runtime %q cannot set container for systemd", name))
 			}
 		case "docker":
 			if runtime.Container == "" {
 				problems = append(problems, fmt.Sprintf("runtime %q requires container", name))
+			} else if strings.HasPrefix(runtime.Container, "-") {
+				problems = append(problems, fmt.Sprintf("runtime %q container must not start with '-'", name))
+			}
+			if runtime.Service != "" {
+				problems = append(problems, fmt.Sprintf("runtime %q cannot set service for docker", name))
 			}
 		default:
 			problems = append(problems, fmt.Sprintf("runtime %q has unsupported type %q", name, runtime.Type))
 		}
+		if runtime.Endpoint != "" {
+			parsed, err := url.ParseRequestURI(runtime.Endpoint)
+			if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+				problems = append(problems, fmt.Sprintf("runtime %q endpoint must be an absolute URL", name))
+			} else if parsed.User != nil {
+				problems = append(problems, fmt.Sprintf("runtime %q endpoint must not contain credentials", name))
+			}
+		}
 	}
 	for name, model := range c.Models {
+		if strings.TrimSpace(name) == "" {
+			problems = append(problems, "model name must not be empty")
+		}
 		if _, ok := c.Runtimes[model.Runtime]; !ok {
 			problems = append(problems, fmt.Sprintf("model %q references unknown runtime %q", name, model.Runtime))
 		}
 		if model.Path == "" {
 			problems = append(problems, fmt.Sprintf("model %q requires path", name))
+		}
+		if model.Size < 0 {
+			problems = append(problems, fmt.Sprintf("model %q size must not be negative", name))
+		}
+		if model.Context < 0 {
+			problems = append(problems, fmt.Sprintf("model %q context must not be negative", name))
+		}
+		if model.Output < 0 {
+			problems = append(problems, fmt.Sprintf("model %q output must not be negative", name))
+		}
+		if model.SHA256 != "" {
+			digest, err := hex.DecodeString(model.SHA256)
+			if err != nil || len(digest) != 32 {
+				problems = append(problems, fmt.Sprintf("model %q sha256 must be 64 hexadecimal characters", name))
+			}
 		}
 	}
 	if len(problems) > 0 {
@@ -117,13 +179,6 @@ func (c *Config) Validate() error {
 }
 
 func Write(path string, cfg *Config, force bool) error {
-	if !force {
-		if _, err := os.Stat(path); err == nil {
-			return fmt.Errorf("config already exists: %s (use --force to replace)", path)
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-	}
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
@@ -131,11 +186,59 @@ func Write(path string, cfg *Config, force bool) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	if info, err := os.Lstat(path); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("config path is a symlink: %s", path)
+		}
+		if !force {
+			return fmt.Errorf("config already exists: %s (use --force to replace)", path)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	return os.Chmod(path, 0o600)
+
+	temp, err := os.CreateTemp(dir, "."+filepath.Base(path)+"-*")
+	if err != nil {
+		return err
+	}
+	tempPath := temp.Name()
+	defer os.Remove(tempPath)
+	closeWithError := func() error {
+		if err := temp.Sync(); err != nil {
+			temp.Close()
+			return err
+		}
+		return temp.Close()
+	}
+	if err := temp.Chmod(0o600); err != nil {
+		temp.Close()
+		return err
+	}
+	if _, err := temp.Write(data); err != nil {
+		temp.Close()
+		return err
+	}
+	if err := closeWithError(); err != nil {
+		return err
+	}
+
+	if !force {
+		if err := os.Link(tempPath, path); err != nil {
+			if errors.Is(err, os.ErrExist) {
+				return fmt.Errorf("config already exists: %s (use --force to replace)", path)
+			}
+			return err
+		}
+		return nil
+	}
+	if info, err := os.Lstat(path); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("config path is a symlink: %s", path)
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return os.Rename(tempPath, path)
 }
