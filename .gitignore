@@ -1,0 +1,7 @@
+# Build artifacts
+/llmm
+/dist/
+
+# Coverage profiles
+coverage.out
+coverage.html

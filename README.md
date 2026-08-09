@@ -4,15 +4,19 @@
 
 **One manifest. Native supervisors. No mystery daemon.**
 
-`llmm` is a small Go CLI that makes an LLM machine inspectable and operable without trying to own the machine.
+`llmm` is a small, fast Go CLI that makes any LLM machine inspectable and operable — without trying to own the machine. Declare your runtimes and models once, and every status, doctor, start, and stop command stays in sync.
 
 [![CI](https://github.com/magiodev/llmm/actions/workflows/ci.yml/badge.svg)](https://github.com/magiodev/llmm/actions/workflows/ci.yml)
-[![Go 1.22+](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go)](https://go.dev/)
+[![Go Report Card](https://goreportcard.com/badge/github.com/magiodev/llmm)](https://goreportcard.com/report/github.com/magiodev/llmm)
+[![Go 1.22+](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 </div>
 
 ---
+
+## The problem
 
 Model servers already have enough moving parts. CUDA, model files, containers, systemd units, API endpoints, context limits, checksums: the information exists, but it tends to be scattered across shell history and half-remembered paths.
 
@@ -35,6 +39,15 @@ ok    runtime ds4              /opt/ds4/ds4-server
 ok    service ds4              ds4-server.service
 ok    model deepseek-v4-flash  /models/deepseek-v4-flash.gguf (86720111488 bytes)
 ```
+
+## Why llmm is worth adopting
+
+- **One source of truth.** Runtimes, models, paths, endpoints, limits, sizes, and checksums live together in a single manifest you can read and diff.
+- **Strict input.** Unknown YAML fields fail validation instead of being silently ignored — a typo cannot silently change behavior.
+- **Native lifecycle.** `systemctl --user` and Docker do the work they already know how to do; llmm is a thin, honest operator interface over them.
+- **Useful diagnostics.** `doctor` checks host prerequisites and model integrity, with an optional `--deep` SHA-256 verification.
+- **Clean remote access.** Trusted clients consume normalized YAML or JSON over SSH — no agent, no daemon, no protocol.
+- **No resident process.** Every command starts, does its job, and exits. Nothing lurks in the background.
 
 ## The shape of it
 
@@ -61,18 +74,9 @@ flowchart LR
 
 The manifest describes reality. systemd and Docker supervise processes. `llmm` is the operator interface between them.
 
-## Why this exists
-
-- **One source of truth:** runtimes, models, paths, endpoints, limits, sizes, and checksums live together.
-- **Strict input:** unknown YAML fields fail validation instead of being silently ignored.
-- **Native lifecycle:** `systemctl --user` and Docker do the work they already know how to do.
-- **Useful diagnostics:** `doctor` checks host prerequisites and model integrity.
-- **Clean remote access:** clients consume normalized YAML or JSON over SSH.
-- **No resident process:** every command starts, does its job, and exits.
-
 ## What llmm does not do
 
-`llmm` does not:
+`llmm` deliberately does not:
 
 - install CUDA, drivers, systemd units, Docker, Tailscale, or model servers;
 - download, convert, or quantize models;
@@ -87,24 +91,27 @@ Those boundaries are intentional. A DGX node may install Model Shelf, Hugging Fa
 
 ## Install
 
-Build with Go 1.22 or newer:
+llmm needs Go 1.22 or newer. There is no runtime dependency beyond a native `systemctl` or `docker` CLI matching your manifest.
+
+### Go install
 
 ```bash
 go install github.com/magiodev/llmm/cmd/llmm@latest
 ```
 
-Or build from a clone:
+Go installs the binary into `$(go env GOPATH)/bin`; make sure that is on `PATH`.
+
+### Build from source
 
 ```bash
 git clone https://github.com/magiodev/llmm.git
 cd llmm
-go test ./...
-go build -o llmm ./cmd/llmm
-mkdir -p ~/.local/bin
+make build          # or: go build -o llmm ./cmd/llmm
+make test           # or: go test ./...
 install -m 0755 llmm ~/.local/bin/llmm
 ```
 
-Check the installation:
+Verify the install:
 
 ```bash
 llmm --version
@@ -237,6 +244,21 @@ docker start|stop|restart <container>
 - Treat `config show` output as operational metadata. Transport it over authenticated SSH.
 - Review lifecycle access carefully: anyone who can read the manifest and access its systemd-user manager or Docker daemon can control those workloads through llmm.
 
+See [SECURITY.md](SECURITY.md) for the full policy and reporting process.
+
+## Alternatives and related tools
+
+`llmm` sits in a specific niche. Here is how it compares:
+
+| Tool | Focus | Where llmm differs |
+|---|---|---|
+| vLLM, llama.cpp, DS4 | Run a single model server | llmm does not launch or configure backends |
+| Model catalogs / storage tools | Organize and download models | llmm records model facts and integrity, never downloads |
+| Systemd / Docker / Kubernetes | Supervise processes | llmm is the thin operator interface over these |
+| Cluster registries | Discover machines automatically | llmm stays per-node and failure-domain obvious |
+
+If you already run systemd or Docker, llmm adds the missing operator layer without adding another resident process. If you need model provisioning or a catalog, use a dedicated tool and keep llmm pointed at what is already true on the machine.
+
 ## Project layout
 
 ```text
@@ -251,11 +273,11 @@ docs/              usage, schema, and remote-client guides
 ## Development
 
 ```bash
-gofmt -w cmd internal
-go test ./...
-go vet ./...
-go build ./cmd/llmm
-git diff --check
+make fmt            # gofmt -w cmd internal
+make test           # go test ./...
+make vet            # go vet ./...
+make build          # go build ./cmd/llmm
+make cover          # coverage report + branch/line threshold check
 ```
 
 The project intentionally has two direct dependencies:
@@ -265,12 +287,17 @@ The project intentionally has two direct dependencies:
 
 Everything else uses the Go standard library or native host commands.
 
+## Contributing
+
+Bug reports, documentation fixes, and well-scoped feature PRs are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution workflow, coding standards, and testing requirements. All community interaction follows the [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
 ## Documentation
 
 - [Usage and operations](docs/usage.md)
 - [Manifest reference](docs/manifest.md)
 - [Remote clients and clusters](docs/remote-clients.md)
 - [Example manifest](examples/config.yaml)
+- [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Code of Conduct](CODE_OF_CONDUCT.md) · [Changelog](CHANGELOG.md)
 
 ## License
 
