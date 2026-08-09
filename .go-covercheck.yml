@@ -16,6 +16,9 @@ lineThreshold: 100.0
 # cmd/llmm's main() calls os.Exit(run(version)); os.Exit never completes its
 # instrumentation block, so main.go's final line is provably uncoverable.
 # run() itself is unit-tested (cmd/llmm/main_test.go); only the one-line
-# entrypoint is excluded from the gate.
+# entrypoint is excluded from the gate. The skip matches the module-prefixed
+# profile filename (github.com/magiodev/llmm/cmd/llmm/main.go) as a substring,
+# so it stays scoped to main.go only — any other logic added under cmd/llmm/
+# remains in the 100% gate.
 skip:
-  - "cmd/llmm"
+  - "cmd/llmm/main.go"
