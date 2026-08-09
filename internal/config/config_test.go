@@ -2,10 +2,12 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func validConfig() *Config {
@@ -189,5 +191,301 @@ func TestMarshal(t *testing.T) {
 	}
 	if _, err := Marshal(cfg, "toml"); err == nil {
 		t.Fatal("expected unsupported format error")
+	}
+}
+
+func TestMarshalNormalizesOmittedRuntimes(t *testing.T) {
+	cfg := &Config{Version: Version}
+	data, err := Marshal(cfg, "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := decoded["runtimes"].(map[string]any); !ok {
+		t.Fatalf("runtimes = %#v, want object", decoded["runtimes"])
+	}
+}
+
+func TestMarshalYAMLError(t *testing.T) {
+	old := marshalYAML
+	marshalYAML = func(any) ([]byte, error) { return nil, errors.New("boom") }
+	defer func() { marshalYAML = old }()
+	if _, err := Marshal(validConfig(), "yaml"); err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDefaultPathEnv(t *testing.T) {
+	t.Setenv("LLMM_CONFIG", "/tmp/custom.yaml")
+	if got := DefaultPath(); got != "/tmp/custom.yaml" {
+		t.Fatalf("DefaultPath = %q", got)
+	}
+}
+
+func TestDefaultPathUserConfigDirError(t *testing.T) {
+	os.Unsetenv("LLMM_CONFIG")
+	old := userConfigDir
+	userConfigDir = func() (string, error) { return "", errors.New("boom") }
+	defer func() { userConfigDir = old }()
+	if got := DefaultPath(); got != "config.yaml" {
+		t.Fatalf("DefaultPath = %q", got)
+	}
+}
+
+func TestDefaultPathUserConfigDir(t *testing.T) {
+	os.Unsetenv("LLMM_CONFIG")
+	old := userConfigDir
+	userConfigDir = func() (string, error) { return "/tmp/conf", nil }
+	defer func() { userConfigDir = old }()
+	if got := DefaultPath(); got != filepath.Join("/tmp/conf", "llmm", "config.yaml") {
+		t.Fatalf("DefaultPath = %q", got)
+	}
+}
+
+func TestValidateWrongVersion(t *testing.T) {
+	cfg := validConfig()
+	cfg.Version = 2
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "version must be") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateNoRuntimes(t *testing.T) {
+	cfg := &Config{Version: Version}
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "at least one runtime") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateSystemdRequiresService(t *testing.T) {
+	cfg := validConfig()
+	cfg.Runtimes["ds4"] = Runtime{Type: "systemd"}
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "requires service") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateDockerRequiresContainer(t *testing.T) {
+	cfg := validConfig()
+	cfg.Runtimes["web"] = Runtime{Type: "docker"}
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "requires container") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateDockerContainerDash(t *testing.T) {
+	cfg := validConfig()
+	cfg.Runtimes["web"] = Runtime{Type: "docker", Container: "--bad"}
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "must not start") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateUnsupportedType(t *testing.T) {
+	cfg := validConfig()
+	cfg.Runtimes["p"] = Runtime{Type: "process"}
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "unsupported type") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateModelRequiresPath(t *testing.T) {
+	cfg := validConfig()
+	cfg.Models["flash"] = Model{Runtime: "ds4"}
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "requires path") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadReadError(t *testing.T) {
+	if _, err := Load(filepath.Join(t.TempDir(), "nope.yaml")); err == nil || !strings.Contains(err.Error(), "read config") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadValidationError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	data := "version: 99\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\nmodels: {}\n"
+	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "version must be") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestWriteMarshalError(t *testing.T) {
+	old := marshalYAML
+	marshalYAML = func(any) ([]byte, error) { return nil, errors.New("boom") }
+	defer func() { marshalYAML = old }()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := Write(path, validConfig(), false); err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadTrailingMalformed(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	data := "version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\n---\n[unclosed,"
+	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "parse trailing document") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestWriteRejectsInvalidConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := Write(path, &Config{Version: 2}, false); err == nil {
+		t.Fatal("expected invalid config error")
+	}
+}
+
+func TestWriteMkdirAllError(t *testing.T) {
+	dir := t.TempDir()
+	parent := filepath.Join(dir, "parent")
+	if err := os.WriteFile(parent, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(parent, "config.yaml")
+	if err := Write(path, validConfig(), false); err == nil {
+		t.Fatal("expected mkdir error")
+	}
+}
+
+func TestWriteLstatError(t *testing.T) {
+	old := lstat
+	lstat = func(string) (os.FileInfo, error) { return nil, errors.New("boom") }
+	defer func() { lstat = old }()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := Write(path, validConfig(), false); err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestWriteCreateTempError(t *testing.T) {
+	old := createTemp
+	createTemp = func(dir, pattern string) (*os.File, error) { return nil, errors.New("boom") }
+	defer func() { createTemp = old }()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := Write(path, validConfig(), false); err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestWriteChmodError(t *testing.T) {
+	old := chmod
+	chmod = func(*os.File, os.FileMode) error { return errors.New("boom") }
+	defer func() { chmod = old }()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := Write(path, validConfig(), false); err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestWriteDataError(t *testing.T) {
+	old := writeData
+	writeData = func(*os.File, []byte) (int, error) { return 0, errors.New("boom") }
+	defer func() { writeData = old }()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := Write(path, validConfig(), false); err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestWriteSyncError(t *testing.T) {
+	old := syncFile
+	syncFile = func(*os.File) error { return errors.New("boom") }
+	defer func() { syncFile = old }()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := Write(path, validConfig(), false); err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestWriteCloseError(t *testing.T) {
+	old := closeFile
+	closeFile = func(*os.File) error { return errors.New("boom") }
+	defer func() { closeFile = old }()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := Write(path, validConfig(), false); err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestWriteLinkAlreadyExists(t *testing.T) {
+	old := linkFile
+	linkFile = func(a, b string) error { return os.ErrExist }
+	defer func() { linkFile = old }()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := Write(path, validConfig(), false); err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestWriteLinkError(t *testing.T) {
+	old := linkFile
+	linkFile = func(a, b string) error { return errors.New("boom") }
+	defer func() { linkFile = old }()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := Write(path, validConfig(), false); err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestForceWriteLstatError(t *testing.T) {
+	old := lstat
+	lstat = func(string) (os.FileInfo, error) { return nil, errors.New("boom") }
+	defer func() { lstat = old }()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := Write(path, validConfig(), true); err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestForceWriteSecondLstatError(t *testing.T) {
+	calls := 0
+	old := lstat
+	lstat = func(string) (os.FileInfo, error) {
+		calls++
+		if calls == 1 {
+			return nil, os.ErrNotExist
+		}
+		return nil, errors.New("boom")
+	}
+	defer func() { lstat = old }()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := Write(path, validConfig(), true); err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+type symlinkInfo struct{}
+
+func (symlinkInfo) Name() string       { return "" }
+func (symlinkInfo) Size() int64        { return 0 }
+func (symlinkInfo) Mode() os.FileMode  { return os.ModeSymlink }
+func (symlinkInfo) ModTime() time.Time { return time.Time{} }
+func (symlinkInfo) IsDir() bool        { return false }
+func (symlinkInfo) Sys() any           { return nil }
+
+func TestForceWriteSecondSymlink(t *testing.T) {
+	calls := 0
+	old := lstat
+	lstat = func(string) (os.FileInfo, error) {
+		calls++
+		if calls == 1 {
+			return nil, os.ErrNotExist
+		}
+		return symlinkInfo{}, nil
+	}
+	defer func() { lstat = old }()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := Write(path, validConfig(), true); err == nil || !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
