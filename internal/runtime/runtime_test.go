@@ -93,3 +93,27 @@ func TestUnsupportedRuntime(t *testing.T) {
 		t.Fatal("expected unsupported runtime error")
 	}
 }
+
+func TestStatusEmptyOutput(t *testing.T) {
+	installCommand(t, "docker", `true`)
+	_, err := Status(context.Background(), config.Runtime{Type: "docker", Container: "web"})
+	if err == nil || !strings.Contains(err.Error(), "empty status") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestCommandErrorNoOutput(t *testing.T) {
+	installCommand(t, "docker", `exit 1`)
+	_, err := Status(context.Background(), config.Runtime{Type: "docker", Container: "web"})
+	if err == nil || !strings.Contains(err.Error(), "docker:") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestStatusSystemdUnknownState(t *testing.T) {
+	installCommand(t, "systemctl", `printf 'weird\n'; exit 3`)
+	_, err := Status(context.Background(), config.Runtime{Type: "systemd", Service: "ds4.service"})
+	if err == nil || !strings.Contains(err.Error(), "systemctl:") {
+		t.Fatalf("error = %v", err)
+	}
+}

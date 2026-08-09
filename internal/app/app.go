@@ -21,6 +21,14 @@ import (
 const supervisorTimeout = 30 * time.Second
 const deepHashTimeout = 30 * time.Minute
 
+// Package-level function variables let tests inject failing file opens and
+// hash writers without changing behavior in production.
+var (
+	openFile = os.Open
+	newHash  = sha256.New
+	readFile = func(f *os.File, b []byte) (int, error) { return f.Read(b) }
+)
+
 type options struct {
 	configPath string
 	quiet      bool
@@ -263,18 +271,18 @@ func doctorCommand(opts *options) *cobra.Command {
 }
 
 func fileSHA256(ctx context.Context, path string) (string, error) {
-	file, err := os.Open(filepath.Clean(path))
+	file, err := openFile(filepath.Clean(path))
 	if err != nil {
 		return "", err
 	}
 	defer file.Close()
-	hash := sha256.New()
+	hash := newHash()
 	buffer := make([]byte, 1024*1024)
 	for {
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
-		count, readErr := file.Read(buffer)
+		count, readErr := readFile(file, buffer)
 		if count > 0 {
 			if _, err := hash.Write(buffer[:count]); err != nil {
 				return "", err

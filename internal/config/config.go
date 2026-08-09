@@ -18,6 +18,22 @@ import (
 
 const Version = 1
 
+// Package-level function variables let tests inject failing filesystem and
+// marshaling paths without changing behavior in production.
+var (
+	userConfigDir = os.UserConfigDir
+	marshalYAML   = yaml.Marshal
+	mkdirAll      = os.MkdirAll
+	lstat         = os.Lstat
+	createTemp    = os.CreateTemp
+	chmod         = func(f *os.File, mode os.FileMode) error { return f.Chmod(mode) }
+	writeData     = func(f *os.File, data []byte) (int, error) { return f.Write(data) }
+	syncFile      = func(f *os.File) error { return f.Sync() }
+	closeFile     = func(f *os.File) error { return f.Close() }
+	linkFile      = os.Link
+	renameFile    = os.Rename
+)
+
 type Config struct {
 	Version  int                `yaml:"version" json:"version"`
 	Node     string             `yaml:"node,omitempty" json:"node,omitempty"`
@@ -49,7 +65,7 @@ func Marshal(c *Config, format string) ([]byte, error) {
 	c.normalize()
 	switch format {
 	case "yaml":
-		return yaml.Marshal(c)
+		return marshalYAML(c)
 	case "json":
 		return json.MarshalIndent(c, "", "  ")
 	default:
@@ -61,7 +77,7 @@ func DefaultPath() string {
 	if value := os.Getenv("LLMM_CONFIG"); value != "" {
 		return value
 	}
-	dir, err := os.UserConfigDir()
+	dir, err := userConfigDir()
 	if err != nil {
 		return "config.yaml"
 	}
@@ -188,15 +204,15 @@ func Write(path string, cfg *Config, force bool) error {
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
-	data, err := yaml.Marshal(cfg)
+	data, err := marshalYAML(cfg)
 	if err != nil {
 		return err
 	}
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := mkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	if info, err := os.Lstat(path); err == nil {
+	if info, err := lstat(path); err == nil {
 		if info.Mode()&os.ModeSymlink != 0 {
 			return fmt.Errorf("config path is a symlink: %s", path)
 		}
@@ -207,25 +223,25 @@ func Write(path string, cfg *Config, force bool) error {
 		return err
 	}
 
-	temp, err := os.CreateTemp(dir, "."+filepath.Base(path)+"-*")
+	temp, err := createTemp(dir, "."+filepath.Base(path)+"-*")
 	if err != nil {
 		return err
 	}
 	tempPath := temp.Name()
 	defer os.Remove(tempPath)
 	closeWithError := func() error {
-		if err := temp.Sync(); err != nil {
-			temp.Close()
+		if err := syncFile(temp); err != nil {
+			closeFile(temp)
 			return err
 		}
-		return temp.Close()
+		return closeFile(temp)
 	}
-	if err := temp.Chmod(0o600); err != nil {
-		temp.Close()
+	if err := chmod(temp, 0o600); err != nil {
+		closeFile(temp)
 		return err
 	}
-	if _, err := temp.Write(data); err != nil {
-		temp.Close()
+	if _, err := writeData(temp, data); err != nil {
+		closeFile(temp)
 		return err
 	}
 	if err := closeWithError(); err != nil {
@@ -233,7 +249,7 @@ func Write(path string, cfg *Config, force bool) error {
 	}
 
 	if !force {
-		if err := os.Link(tempPath, path); err != nil {
+		if err := linkFile(tempPath, path); err != nil {
 			if errors.Is(err, os.ErrExist) {
 				return fmt.Errorf("config already exists: %s (use --force to replace)", path)
 			}
@@ -241,10 +257,10 @@ func Write(path string, cfg *Config, force bool) error {
 		}
 		return nil
 	}
-	if info, err := os.Lstat(path); err == nil && info.Mode()&os.ModeSymlink != 0 {
+	if info, err := lstat(path); err == nil && info.Mode()&os.ModeSymlink != 0 {
 		return fmt.Errorf("config path is a symlink: %s", path)
 	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	return os.Rename(tempPath, path)
+	return renameFile(tempPath, path)
 }
