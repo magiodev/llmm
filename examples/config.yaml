@@ -23,3 +23,4 @@ models:
     source: antirez/deepseek-v4-gguf
     context: 262144
     output: 8192
+    reasoning: [none, high]

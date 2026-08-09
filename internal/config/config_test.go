@@ -39,6 +39,11 @@ func TestValidate(t *testing.T) {
 		{"credential endpoint", func(c *Config) {
 			c.Runtimes["ds4"] = Runtime{Type: "systemd", Service: "ds4.service", Endpoint: "https://user:secret@example.test/v1"}
 		}, "must not contain credentials"},
+		{"empty reasoning level", func(c *Config) {
+			m := c.Models["flash"]
+			m.Reasoning = []string{""}
+			c.Models["flash"] = m
+		}, "empty reasoning level"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -93,6 +98,24 @@ func TestMarshalNormalizesOmittedModels(t *testing.T) {
 	}
 	if _, ok := decoded["models"].(map[string]any); !ok {
 		t.Fatalf("models = %#v, want object", decoded["models"])
+	}
+}
+
+func TestMarshalIncludesReasoning(t *testing.T) {
+	cfg := &Config{Version: Version, Runtimes: map[string]Runtime{"ds4": {Type: "systemd", Service: "ds4.service"}}, Models: map[string]Model{"flash": {Runtime: "ds4", Path: "/models/flash.gguf", Reasoning: []string{"none", "high"}}}}
+	data, err := Marshal(cfg, "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	models := decoded["models"].(map[string]any)
+	flash := models["flash"].(map[string]any)
+	levels, ok := flash["reasoning"].([]any)
+	if !ok || len(levels) != 2 || levels[0] != "none" || levels[1] != "high" {
+		t.Fatalf("reasoning = %#v, want [none high]", flash["reasoning"])
 	}
 }
 
