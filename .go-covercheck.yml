@@ -1,0 +1,14 @@
+# Coverage thresholds enforced by go-covercheck in CI.
+# llmm requires every logic branch (block) to be covered; statements and
+# lines are also enforced at the same strict bar.
+#
+#   blocks  = branch coverage (if/else, switch cases, loop bodies)
+#   statements = statement coverage
+#   lines    = line coverage
+#
+# If a branch is provably unreachable (e.g. a defensive error return that
+# cannot trigger for a valid struct), document it in the PR and lower only
+# that metric, never the branch gate.
+statementThreshold: 100.0
+blockThreshold: 100.0
+lineThreshold: 100.0
