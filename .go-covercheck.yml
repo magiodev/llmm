@@ -18,4 +18,4 @@ lineThreshold: 100.0
 # run() itself is unit-tested (cmd/llmm/main_test.go); only the one-line
 # entrypoint is excluded from the gate.
 skip:
-  - "^cmd/llmm/"
+  - "cmd/llmm"
