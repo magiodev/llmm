@@ -34,14 +34,15 @@ type Runtime struct {
 }
 
 type Model struct {
-	Runtime string `yaml:"runtime" json:"runtime"`
-	Format  string `yaml:"format" json:"format"`
-	Path    string `yaml:"path" json:"path"`
-	Source  string `yaml:"source,omitempty" json:"source,omitempty"`
-	SHA256  string `yaml:"sha256,omitempty" json:"sha256,omitempty"`
-	Size    int64  `yaml:"size,omitempty" json:"size,omitempty"`
-	Context int    `yaml:"context,omitempty" json:"context,omitempty"`
-	Output  int    `yaml:"output,omitempty" json:"output,omitempty"`
+	Runtime   string   `yaml:"runtime" json:"runtime"`
+	Format    string   `yaml:"format" json:"format"`
+	Path      string   `yaml:"path" json:"path"`
+	Source    string   `yaml:"source,omitempty" json:"source,omitempty"`
+	SHA256    string   `yaml:"sha256,omitempty" json:"sha256,omitempty"`
+	Size      int64    `yaml:"size,omitempty" json:"size,omitempty"`
+	Context   int      `yaml:"context,omitempty" json:"context,omitempty"`
+	Output    int      `yaml:"output,omitempty" json:"output,omitempty"`
+	Reasoning []string `yaml:"reasoning,omitempty" json:"reasoning,omitempty"`
 }
 
 func Marshal(c *Config, format string) ([]byte, error) {
@@ -168,6 +169,11 @@ func (c *Config) Validate() error {
 			digest, err := hex.DecodeString(model.SHA256)
 			if err != nil || len(digest) != 32 {
 				problems = append(problems, fmt.Sprintf("model %q sha256 must be 64 hexadecimal characters", name))
+			}
+		}
+		for _, level := range model.Reasoning {
+			if strings.TrimSpace(level) == "" {
+				problems = append(problems, fmt.Sprintf("model %q has an empty reasoning level", name))
 			}
 		}
 	}

@@ -223,6 +223,7 @@ models:
 | `size` | integer | no | Expected bytes used by normal doctor; may not be negative. |
 | `context` | integer | no | Advertised context-window limit; may not be negative. |
 | `output` | integer | no | Advertised output-token limit; may not be negative. |
+| `reasoning` | list of strings | no | Advertised reasoning levels (e.g. `[none, high]`). Entries must be non-empty strings. |
 
 ### `runtime`
 
@@ -302,6 +303,14 @@ output: 8192
 These are advertised token limits for clients. llmm exports them but does not configure or verify the runtime's launch flags.
 
 Keep them aligned with the live server. A client that trusts an inflated context limit may submit a request the runtime cannot serve.
+
+### `reasoning`
+
+```yaml
+reasoning: [none, high]
+```
+
+Advertised reasoning levels for clients, passed through verbatim. Clients use them to present or cycle reasoning modes; llmm does not interpret the values. Entries must be non-empty strings.
 
 ## Minimal valid manifest
 
