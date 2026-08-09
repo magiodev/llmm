@@ -134,7 +134,7 @@ Resolve the endpoint for a model by following its runtime reference:
 ssh dgx '$HOME/.local/bin/llmm config show --format json' \
   | jq -r '
       . as $manifest
-      | .models["deepseek-v4-flash"].runtime as $runtime
+      | .models["example-model"].runtime as $runtime
       | $manifest.runtimes[$runtime].endpoint
     '
 ```
@@ -166,7 +166,7 @@ raw = subprocess.check_output(
 )
 
 manifest = json.loads(raw)
-model = manifest["models"]["deepseek-v4-flash"]
+model = manifest["models"]["example-model"]
 runtime = manifest["runtimes"][model["runtime"]]
 
 print(manifest["node"])
@@ -212,7 +212,7 @@ A snapshot is a cache. The source remains `~/.config/llmm/config.yaml` on the no
 `config show` already parses and validates the manifest. Clients that need live service assurance should also query runtime state and the API:
 
 ```bash
-ssh dgx '$HOME/.local/bin/llmm status ds4'
+ssh dgx '$HOME/.local/bin/llmm status example'
 curl -fsS http://dgx:8001/v1/models
 ```
 
@@ -230,7 +230,7 @@ Extract the endpoint and model ID rather than hardcoding both in several places:
 
 ```bash
 manifest="$(ssh dgx '$HOME/.local/bin/llmm config show --format json')"
-model="deepseek-v4-flash"
+model="example-model"
 runtime="$(jq -r --arg model "$model" '.models[$model].runtime' <<<"$manifest")"
 base_url="$(jq -r --arg runtime "$runtime" '.runtimes[$runtime].endpoint' <<<"$manifest")"
 context="$(jq -r --arg model "$model" '.models[$model].context' <<<"$manifest")"
@@ -284,17 +284,17 @@ Result:
     "version": 1,
     "node": "dgx",
     "runtimes": {
-      "ds4": {
+      "example": {
         "type": "systemd",
-        "service": "ds4-server.service",
+        "service": "example.service",
         "endpoint": "http://dgx:8001/v1"
       }
     },
     "models": {
-      "deepseek-v4-flash": {
-        "runtime": "ds4",
+      "example-model": {
+        "runtime": "example",
         "format": "gguf",
-        "path": "/models/deepseek-v4-flash.gguf"
+        "path": "/models/example-model.gguf"
       }
     }
   },
