@@ -17,7 +17,21 @@ jobs:
         with:
           go-version: "1.22.x"
           cache: true
-      - run: test -z "$(gofmt -l cmd internal)"
-      - run: go test ./...
-      - run: go vet ./...
-      - run: go build ./cmd/llmm
+
+      - name: Format
+        run: test -z "$(gofmt -l cmd internal)"
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./cmd/llmm
+
+      - name: Test with coverage profile
+        run: go test -coverprofile=coverage.out ./...
+
+      - name: Install go-covercheck
+        run: go install github.com/mach6/go-covercheck/cmd/go-covercheck@latest
+
+      - name: Enforce coverage thresholds (statements, branches, lines)
+        run: go-covercheck coverage.out
