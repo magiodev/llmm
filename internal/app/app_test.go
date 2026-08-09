@@ -75,7 +75,7 @@ func TestQuietSuppressesConfirmationOutput(t *testing.T) {
 }
 
 func TestUnknownRuntime(t *testing.T) {
-	path := writeManifest(t, "version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\nmodels: {}\n")
+	path := writeManifest(t, "version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\nmodels: {}\n")
 	cmd := New("test")
 	cmd.SetArgs([]string{"--config", path, "status", "missing"})
 	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "unknown runtime") {
@@ -84,7 +84,7 @@ func TestUnknownRuntime(t *testing.T) {
 }
 
 func TestConfigShowJSON(t *testing.T) {
-	path := writeManifest(t, "version: 1\nnode: dgx\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\n")
+	path := writeManifest(t, "version: 1\nnode: dgx\nruntimes:\n  example:\n    type: systemd\n    service: example.service\n")
 	cmd := New("test")
 	var output bytes.Buffer
 	cmd.SetOut(&output)
@@ -98,7 +98,7 @@ func TestConfigShowJSON(t *testing.T) {
 }
 
 func TestModelsAreSorted(t *testing.T) {
-	path := writeManifest(t, "version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\nmodels:\n  z:\n    runtime: ds4\n    path: /z\n  a:\n    runtime: ds4\n    path: /a\n")
+	path := writeManifest(t, "version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\nmodels:\n  z:\n    runtime: example\n    path: /z\n  a:\n    runtime: example\n    path: /a\n")
 	cmd := New("test")
 	var output bytes.Buffer
 	cmd.SetOut(&output)
@@ -106,7 +106,7 @@ func TestModelsAreSorted(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if output.String() != "a\tds4\t/a\nz\tds4\t/z\n" {
+	if output.String() != "a\texample\t/a\nz\texample\t/z\n" {
 		t.Fatalf("output = %q", output.String())
 	}
 }
@@ -184,10 +184,10 @@ func TestDoctorRejectsNonExecutable(t *testing.T) {
 	if err := os.WriteFile(executable, []byte("binary"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	path := writeManifest(t, fmt.Sprintf("version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\n    executable: %s\nmodels: {}\n", executable))
+	path := writeManifest(t, fmt.Sprintf("version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\n    executable: %s\nmodels: {}\n", executable))
 	cmd := New("test")
 	cmd.SetArgs([]string{"--config", path, "doctor"})
-	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "runtime ds4") {
+	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "runtime example") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -219,7 +219,7 @@ func TestConfigShowMissing(t *testing.T) {
 }
 
 func TestConfigShowBadFormat(t *testing.T) {
-	path := writeManifest(t, "version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\nmodels: {}\n")
+	path := writeManifest(t, "version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\nmodels: {}\n")
 	cmd := New("test")
 	cmd.SetArgs([]string{"--config", path, "config", "show", "--format", "toml"})
 	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "unsupported format") {
@@ -228,7 +228,7 @@ func TestConfigShowBadFormat(t *testing.T) {
 }
 
 func TestConfigInitRefusesOverwrite(t *testing.T) {
-	path := writeManifest(t, "version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\nmodels: {}\n")
+	path := writeManifest(t, "version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\nmodels: {}\n")
 	cmd := New("test")
 	cmd.SetArgs([]string{"--config", path, "config", "init"})
 	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "already exists") {
@@ -237,7 +237,7 @@ func TestConfigInitRefusesOverwrite(t *testing.T) {
 }
 
 func TestConfigInitForce(t *testing.T) {
-	path := writeManifest(t, "version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\nmodels: {}\n")
+	path := writeManifest(t, "version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\nmodels: {}\n")
 	cmd := New("test")
 	cmd.SetArgs([]string{"--config", path, "config", "init", "--force"})
 	if err := cmd.Execute(); err != nil {
@@ -246,7 +246,7 @@ func TestConfigInitForce(t *testing.T) {
 }
 
 func TestQuietValidate(t *testing.T) {
-	path := writeManifest(t, "version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\nmodels: {}\n")
+	path := writeManifest(t, "version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\nmodels: {}\n")
 	cmd := New("test")
 	var output bytes.Buffer
 	cmd.SetOut(&output)
@@ -269,7 +269,7 @@ func TestStatusMissingConfig(t *testing.T) {
 
 func TestStatusSuccess(t *testing.T) {
 	installFakeCommand(t, "systemctl", `printf 'active\n'`)
-	path := writeManifest(t, "version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\n  web:\n    type: systemd\n    service: web.service\nmodels: {}\n")
+	path := writeManifest(t, "version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\n  web:\n    type: systemd\n    service: web.service\nmodels: {}\n")
 	cmd := New("test")
 	var output bytes.Buffer
 	cmd.SetOut(&output)
@@ -277,22 +277,22 @@ func TestStatusSuccess(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(output.String(), "ds4") || !strings.Contains(output.String(), "web") {
+	if !strings.Contains(output.String(), "example") || !strings.Contains(output.String(), "web") {
 		t.Fatalf("output = %q", output.String())
 	}
 }
 
 func TestStatusSingleRuntime(t *testing.T) {
 	installFakeCommand(t, "systemctl", `printf 'active\n'`)
-	path := writeManifest(t, "version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\nmodels: {}\n")
+	path := writeManifest(t, "version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\nmodels: {}\n")
 	cmd := New("test")
 	var output bytes.Buffer
 	cmd.SetOut(&output)
-	cmd.SetArgs([]string{"--config", path, "status", "ds4"})
+	cmd.SetArgs([]string{"--config", path, "status", "example"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(output.String(), "ds4") || !strings.Contains(output.String(), "active") {
+	if !strings.Contains(output.String(), "example") || !strings.Contains(output.String(), "active") {
 		t.Fatalf("output = %q", output.String())
 	}
 }
@@ -315,10 +315,10 @@ func TestDoctorMissingConfig(t *testing.T) {
 
 func TestDoctorSystemdServiceMissing(t *testing.T) {
 	installFakeCommand(t, "systemctl", `printf 'not-found\n'; exit 4`)
-	path := writeManifest(t, "version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\nmodels: {}\n")
+	path := writeManifest(t, "version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\nmodels: {}\n")
 	cmd := New("test")
 	cmd.SetArgs([]string{"--config", path, "doctor"})
-	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "service ds4") {
+	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "service example") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -350,7 +350,7 @@ func TestDoctorExecutableOK(t *testing.T) {
 	if err := os.WriteFile(executable, []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	path := writeManifest(t, fmt.Sprintf("version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\n    executable: %s\nmodels: {}\n", executable))
+	path := writeManifest(t, fmt.Sprintf("version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\n    executable: %s\nmodels: {}\n", executable))
 	cmd := New("test")
 	cmd.SetArgs([]string{"--config", path, "doctor"})
 	if err := cmd.Execute(); err != nil {
@@ -408,21 +408,21 @@ func TestDoctorDeepOpenError(t *testing.T) {
 
 func TestActionSystemdSuccess(t *testing.T) {
 	installFakeCommand(t, "systemctl", `printf 'active\n'`)
-	path := writeManifest(t, "version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\nmodels: {}\n")
+	path := writeManifest(t, "version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\nmodels: {}\n")
 	cmd := New("test")
 	var output bytes.Buffer
 	cmd.SetOut(&output)
-	cmd.SetArgs([]string{"--config", path, "start", "ds4"})
+	cmd.SetArgs([]string{"--config", path, "start", "example"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(output.String(), "ds4: active") {
+	if !strings.Contains(output.String(), "example: active") {
 		t.Fatalf("output = %q", output.String())
 	}
 }
 
 func TestActionUnknownRuntime(t *testing.T) {
-	path := writeManifest(t, "version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\nmodels: {}\n")
+	path := writeManifest(t, "version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\nmodels: {}\n")
 	cmd := New("test")
 	cmd.SetArgs([]string{"--config", path, "start", "missing"})
 	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "unknown runtime") {
@@ -432,7 +432,7 @@ func TestActionUnknownRuntime(t *testing.T) {
 
 func TestActionMissingConfig(t *testing.T) {
 	cmd := New("test")
-	cmd.SetArgs([]string{"--config", "/nonexistent.yaml", "start", "ds4"})
+	cmd.SetArgs([]string{"--config", "/nonexistent.yaml", "start", "example"})
 	if err := cmd.Execute(); err == nil {
 		t.Fatal("expected read error")
 	}
@@ -440,9 +440,9 @@ func TestActionMissingConfig(t *testing.T) {
 
 func TestActionFails(t *testing.T) {
 	installFakeCommand(t, "systemctl", `printf 'permission denied\n' >&2; exit 7`)
-	path := writeManifest(t, "version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\nmodels: {}\n")
+	path := writeManifest(t, "version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\nmodels: {}\n")
 	cmd := New("test")
-	cmd.SetArgs([]string{"--config", path, "start", "ds4"})
+	cmd.SetArgs([]string{"--config", path, "start", "example"})
 	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "permission denied") {
 		t.Fatalf("error = %v", err)
 	}
@@ -450,9 +450,9 @@ func TestActionFails(t *testing.T) {
 
 func TestActionStatusFails(t *testing.T) {
 	installFakeCommand(t, "systemctl", `case "$*" in *is-active*) printf 'boom\n' >&2; exit 3;; *) printf 'ok\n';; esac`)
-	path := writeManifest(t, "version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\nmodels: {}\n")
+	path := writeManifest(t, "version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\nmodels: {}\n")
 	cmd := New("test")
-	cmd.SetArgs([]string{"--config", path, "start", "ds4"})
+	cmd.SetArgs([]string{"--config", path, "start", "example"})
 	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "boom") {
 		t.Fatalf("error = %v", err)
 	}
@@ -460,11 +460,11 @@ func TestActionStatusFails(t *testing.T) {
 
 func TestActionQuiet(t *testing.T) {
 	installFakeCommand(t, "systemctl", `printf 'active\n'`)
-	path := writeManifest(t, "version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\nmodels: {}\n")
+	path := writeManifest(t, "version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\nmodels: {}\n")
 	cmd := New("test")
 	var output bytes.Buffer
 	cmd.SetOut(&output)
-	cmd.SetArgs([]string{"--quiet", "--config", path, "start", "ds4"})
+	cmd.SetArgs([]string{"--quiet", "--config", path, "start", "example"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -483,12 +483,12 @@ func TestActionCompletion(t *testing.T) {
 	if _, directive := start.ValidArgsFunction(start, nil, ""); directive != cobra.ShellCompDirectiveError {
 		t.Fatalf("directive = %d", directive)
 	}
-	path := writeManifest(t, "version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\nmodels: {}\n")
+	path := writeManifest(t, "version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\nmodels: {}\n")
 	t.Setenv("LLMM_CONFIG", path)
 	cmd2 := New("test")
 	start2 := findCommand(cmd2, "start")
 	names, directive := start2.ValidArgsFunction(start2, nil, "")
-	if len(names) != 1 || names[0] != "ds4" || directive != cobra.ShellCompDirectiveNoFileComp {
+	if len(names) != 1 || names[0] != "example" || directive != cobra.ShellCompDirectiveNoFileComp {
 		t.Fatalf("names = %v directive = %d", names, directive)
 	}
 }
@@ -498,7 +498,7 @@ type failWriter struct{}
 func (failWriter) Write(p []byte) (int, error) { return 0, errors.New("boom") }
 
 func TestConfigShowWriteError(t *testing.T) {
-	path := writeManifest(t, "version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\nmodels: {}\n")
+	path := writeManifest(t, "version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\nmodels: {}\n")
 	cmd := New("test")
 	cmd.SetOut(failWriter{})
 	cmd.SetArgs([]string{"--config", path, "config", "show"})

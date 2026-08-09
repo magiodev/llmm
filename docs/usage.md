@@ -171,9 +171,9 @@ Typical JSON queries:
 
 ```bash
 llmm config show --format json | jq -r '.node'
-llmm config show --format json | jq -r '.runtimes.ds4.endpoint'
+llmm config show --format json | jq -r '.runtimes.example.endpoint'
 llmm config show --format json | jq -r '.models | keys[]'
-llmm config show --format json | jq '.models["deepseek-v4-flash"] | {context, output}'
+llmm config show --format json | jq '.models["example-model"] | {context, output}'
 ```
 
 ## Inspect runtime status
@@ -187,13 +187,13 @@ llmm status
 Show one runtime:
 
 ```bash
-llmm status ds4
+llmm status example
 ```
 
 Example:
 
 ```text
-ds4              active
+example              active
 open-webui       running
 ```
 
@@ -208,9 +208,9 @@ Status meanings come from the native supervisor:
 ## Control runtimes
 
 ```bash
-llmm start ds4
-llmm stop ds4
-llmm restart ds4
+llmm start example
+llmm stop example
+llmm restart example
 ```
 
 For systemd entries, llmm executes:
@@ -234,8 +234,8 @@ Errors include the failed native command and its combined output. Supervisor com
 Model loading may take minutes. Check supervisor state first, then probe the actual API:
 
 ```bash
-llmm restart ds4
-llmm status ds4
+llmm restart example
+llmm status example
 
 until curl -fsS http://dgx:8001/v1/models >/dev/null; do
   sleep 5
@@ -253,7 +253,7 @@ llmm models
 Output is tab-separated:
 
 ```text
-deepseek-v4-flash	ds4	/models/deepseek-v4-flash.gguf
+example-model	example	/models/example-model.gguf
 ```
 
 The columns are:
@@ -283,10 +283,10 @@ Example:
 
 ```text
 ok    config                   /home/alice/.config/llmm/config.yaml
-ok    runtime ds4              /opt/ds4/ds4-server
-ok    service ds4              ds4-server.service
+ok    runtime example              /opt/example/example-server
+ok    service example              example.service
 ok    docker open-webui        open-webui
-ok    model deepseek-v4-flash  /models/deepseek-v4-flash.gguf (86720111488 bytes)
+ok    model example-model  /models/example-model.gguf (86720111488 bytes)
 ```
 
 Failed checks use `fail` and produce a non-zero exit after all checks run.
@@ -325,7 +325,7 @@ Examples:
 
 ```bash
 llmm -q config validate
-llmm -q restart ds4
+llmm -q restart example
 ```
 
 ## Shell completion
@@ -418,7 +418,7 @@ The model's `runtime` value must exactly match a key under `runtimes`.
 Run the native supervisor command for detail:
 
 ```bash
-systemctl --user status ds4-server.service
+systemctl --user status example.service
 docker inspect open-webui
 ```
 
@@ -429,7 +429,7 @@ llmm keeps status output compact but returns native supervisor failures instead 
 The process may still be loading its model, may have bound a different address, or may have failed after systemd considered it started. Inspect logs and probe the declared endpoint:
 
 ```bash
-journalctl --user -u ds4-server.service -n 100 --no-pager
+journalctl --user -u example.service -n 100 --no-pager
 curl -fsS http://dgx:8001/v1/models
 ```
 
@@ -447,7 +447,7 @@ docker inspect open-webui
 Verify that the configured digest belongs to the exact artifact:
 
 ```bash
-sha256sum /models/deepseek-v4-flash.gguf
+sha256sum /models/example-model.gguf
 ```
 
 A size match is not a checksum match. Update the manifest only after confirming that the new artifact is intentional.

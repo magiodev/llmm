@@ -9,10 +9,10 @@ version: 1
 node: dgx
 
 runtimes:
-  ds4:
+  example:
     type: systemd
-    service: ds4-server.service
-    executable: /opt/ds4/ds4-server
+    service: example.service
+    executable: /opt/example/example-server
     endpoint: http://dgx:8001/v1
 
   vllm:
@@ -27,11 +27,11 @@ runtimes:
     endpoint: http://dgx:8080
 
 models:
-  deepseek-v4-flash:
-    runtime: ds4
+  example-model:
+    runtime: example
     format: gguf
-    path: /models/deepseek-v4-flash.gguf
-    source: antirez/deepseek-v4-gguf
+    path: /models/example-model.gguf
+    source: owner/example-model-gguf
     sha256: ca22ae2f838e14077c22bc1c1417b71b45b5e5a3687bd96c2ac6e17fdb6261c0
     size: 86720111488
     context: 262144
@@ -91,10 +91,10 @@ The field is currently descriptive. llmm exports it but does not compare it with
 
 ```yaml
 runtimes:
-  ds4:
+  example:
     type: systemd
-    service: ds4-server.service
-    executable: /opt/ds4/ds4-server
+    service: example.service
+    executable: /opt/example/example-server
     endpoint: http://dgx:8001/v1
 ```
 
@@ -120,19 +120,19 @@ Runtime names:
 
 ```yaml
 runtimes:
-  ds4:
+  example:
     type: systemd
-    service: ds4-server.service
-    executable: /home/alice/src/ds4/ds4-server
+    service: example.service
+    executable: /home/alice/src/example/example-server
     endpoint: http://dgx:8001/v1
 ```
 
 Lifecycle maps to user services:
 
 ```text
-systemctl --user start ds4-server.service
-systemctl --user stop ds4-server.service
-systemctl --user restart ds4-server.service
+systemctl --user start example.service
+systemctl --user stop example.service
+systemctl --user restart example.service
 ```
 
 Doctor checks that:
@@ -169,7 +169,7 @@ llmm does not create containers, run Compose, pull images, or edit container con
 ### `executable`
 
 ```yaml
-executable: /opt/ds4/ds4-server
+executable: /opt/example/example-server
 ```
 
 This optional field gives doctor a concrete host prerequisite to verify. Use an absolute path. For an interpreter-based runtime, point to the executable the service actually launches.
@@ -200,11 +200,11 @@ Do not embed credentials in the URL.
 
 ```yaml
 models:
-  deepseek-v4-flash:
-    runtime: ds4
+  example-model:
+    runtime: example
     format: gguf
-    path: /models/deepseek-v4-flash.gguf
-    source: antirez/deepseek-v4-gguf
+    path: /models/example-model.gguf
+    source: owner/example-model-gguf
     sha256: ca22ae2f838e14077c22bc1c1417b71b45b5e5a3687bd96c2ac6e17fdb6261c0
     size: 86720111488
     context: 262144
@@ -228,7 +228,7 @@ models:
 ### `runtime`
 
 ```yaml
-runtime: ds4
+runtime: example
 ```
 
 This value must exactly match a runtime key. Validation fails when it does not.
@@ -246,7 +246,7 @@ format: gguf
 ### `path`
 
 ```yaml
-path: /models/deepseek-v4-flash.gguf
+path: /models/example-model.gguf
 ```
 
 Doctor requires this path to exist and be a regular file. FIFOs, sockets, devices, and directories fail. Prefer absolute paths so behavior does not depend on the working directory.
@@ -256,7 +256,7 @@ For sharded models, version 1 expects one path per model entry and has no shard-
 ### `source`
 
 ```yaml
-source: antirez/deepseek-v4-gguf
+source: owner/example-model-gguf
 ```
 
 Use this for provenance that helps an operator identify the artifact. It may be a repository ID, project name, or release reference. It is not used to download anything.
@@ -289,8 +289,8 @@ Size is bytes, not a human-readable string. Normal doctor compares this value wi
 Set it with a trusted tool after the artifact is complete:
 
 ```bash
-stat -c %s /models/deepseek-v4-flash.gguf   # Linux
-stat -f %z /models/deepseek-v4-flash.gguf   # macOS
+stat -c %s /models/example-model.gguf   # Linux
+stat -f %z /models/example-model.gguf   # macOS
 ```
 
 ### `context` and `output`
@@ -409,23 +409,23 @@ Unsupported runtime:
 
 ```yaml
 runtimes:
-  ds4:
+  example:
     type: process
 ```
 
 Result includes:
 
 ```text
-runtime "ds4" has unsupported type "process"
+runtime "example" has unsupported type "process"
 ```
 
 Broken model reference:
 
 ```yaml
 runtimes:
-  ds4:
+  example:
     type: systemd
-    service: ds4.service
+    service: example.service
 models:
   flash:
     runtime: missing

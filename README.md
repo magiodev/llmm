@@ -25,19 +25,19 @@ Model servers already have enough moving parts. CUDA, model files, containers, s
 ```text
 $ llmm status
 
-ds4              active
+example              active
 open-webui       running
 
 $ llmm models
 
-deepseek-v4-flash  ds4  /models/deepseek-v4-flash.gguf
+example-model  example  /models/example-model.gguf
 
 $ llmm doctor
 
 ok    config                   /home/alice/.config/llmm/config.yaml
-ok    runtime ds4              /opt/ds4/ds4-server
-ok    service ds4              ds4-server.service
-ok    model deepseek-v4-flash  /models/deepseek-v4-flash.gguf (86720111488 bytes)
+ok    runtime example              /opt/example/example-server
+ok    service example              example.service
+ok    model example-model  /models/example-model.gguf (86720111488 bytes)
 ```
 
 ## Why llmm is worth adopting
@@ -87,7 +87,7 @@ The manifest describes reality. systemd and Docker supervise processes. `llmm` i
 - discover a cluster automatically;
 - supervise processes itself.
 
-Those boundaries are intentional. A DGX node may install Model Shelf, Hugging Face tooling, vLLM, DS4, or other utilities, but they remain independent of llmm.
+Those boundaries are intentional. A DGX node may install Model Shelf, Hugging Face tooling, vLLM, or other utilities, but they remain independent of llmm.
 
 ## Install
 
@@ -133,10 +133,10 @@ version: 1
 node: dgx
 
 runtimes:
-  ds4:
+  example:
     type: systemd
-    service: ds4-server.service
-    executable: /opt/ds4/ds4-server
+    service: example.service
+    executable: /opt/example/example-server
     endpoint: http://dgx:8001/v1
 models: {}
 ```
@@ -201,7 +201,7 @@ Inspect a specific endpoint with `jq`:
 
 ```bash
 ssh dgx '$HOME/.local/bin/llmm config show --format json' \
-  | jq -r '.runtimes.ds4.endpoint'
+  | jq -r '.runtimes.example.endpoint'
 ```
 
 Save a local snapshot only when a client actually needs a file:
@@ -252,7 +252,7 @@ See [SECURITY.md](SECURITY.md) for the full policy and reporting process.
 
 | Tool | Focus | Where llmm differs |
 |---|---|---|
-| vLLM, llama.cpp, DS4 | Run a single model server | llmm does not launch or configure backends |
+| vLLM, llama.cpp | Run a single model server | llmm does not launch or configure backends |
 | Model catalogs / storage tools | Organize and download models | llmm records model facts and integrity, never downloads |
 | Systemd / Docker / Kubernetes | Supervise processes | llmm is the thin operator interface over these |
 | Cluster registries | Discover machines automatically | llmm stays per-node and failure-domain obvious |

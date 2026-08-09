@@ -33,14 +33,14 @@ func TestNames(t *testing.T) {
 func TestSystemdActionUsesOptionSeparator(t *testing.T) {
 	log := filepath.Join(t.TempDir(), "args")
 	installCommand(t, "systemctl", `printf '%s\n' "$*" > "`+log+`"`)
-	if err := Action(context.Background(), config.Runtime{Type: "systemd", Service: "ds4.service"}, "restart"); err != nil {
+	if err := Action(context.Background(), config.Runtime{Type: "systemd", Service: "example.service"}, "restart"); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(log)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.TrimSpace(string(data)); got != "--user restart -- ds4.service" {
+	if got := strings.TrimSpace(string(data)); got != "--user restart -- example.service" {
 		t.Fatalf("args = %q", got)
 	}
 }
@@ -58,7 +58,7 @@ func TestDockerStatus(t *testing.T) {
 
 func TestInactiveSystemdStatusIsNotAnExecutionError(t *testing.T) {
 	installCommand(t, "systemctl", `printf 'inactive\n'; exit 3`)
-	state, err := Status(context.Background(), config.Runtime{Type: "systemd", Service: "ds4.service"})
+	state, err := Status(context.Background(), config.Runtime{Type: "systemd", Service: "example.service"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +112,7 @@ func TestCommandErrorNoOutput(t *testing.T) {
 
 func TestStatusSystemdUnknownState(t *testing.T) {
 	installCommand(t, "systemctl", `printf 'weird\n'; exit 3`)
-	_, err := Status(context.Background(), config.Runtime{Type: "systemd", Service: "ds4.service"})
+	_, err := Status(context.Background(), config.Runtime{Type: "systemd", Service: "example.service"})
 	if err == nil || !strings.Contains(err.Error(), "systemctl:") {
 		t.Fatalf("error = %v", err)
 	}

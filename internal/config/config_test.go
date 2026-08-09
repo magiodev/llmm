@@ -11,7 +11,7 @@ import (
 )
 
 func validConfig() *Config {
-	return &Config{Version: Version, Runtimes: map[string]Runtime{"ds4": {Type: "systemd", Service: "ds4.service"}}, Models: map[string]Model{"flash": {Runtime: "ds4", Format: "gguf", Path: "/models/flash.gguf"}}}
+	return &Config{Version: Version, Runtimes: map[string]Runtime{"example": {Type: "systemd", Service: "example.service"}}, Models: map[string]Model{"flash": {Runtime: "example", Format: "gguf", Path: "/models/flash.gguf"}}}
 }
 
 func TestValidate(t *testing.T) {
@@ -29,17 +29,19 @@ func TestValidate(t *testing.T) {
 		{"negative output", func(c *Config) { m := c.Models["flash"]; m.Output = -1; c.Models["flash"] = m }, "output must not be negative"},
 		{"invalid checksum", func(c *Config) { m := c.Models["flash"]; m.SHA256 = "nope"; c.Models["flash"] = m }, "sha256 must be 64 hexadecimal"},
 		{"empty runtime name", func(c *Config) { c.Runtimes[""] = Runtime{Type: "docker", Container: "one"} }, "runtime name must not be empty"},
-		{"empty model name", func(c *Config) { c.Models[""] = Model{Runtime: "ds4", Path: "/model"} }, "model name must not be empty"},
+		{"empty model name", func(c *Config) { c.Models[""] = Model{Runtime: "example", Path: "/model"} }, "model name must not be empty"},
 		{"systemd container", func(c *Config) {
-			c.Runtimes["ds4"] = Runtime{Type: "systemd", Service: "ds4.service", Container: "wrong"}
+			c.Runtimes["example"] = Runtime{Type: "systemd", Service: "example.service", Container: "wrong"}
 		}, "cannot set container"},
-		{"docker service", func(c *Config) { c.Runtimes["ds4"] = Runtime{Type: "docker", Container: "ds4", Service: "wrong"} }, "cannot set service"},
-		{"leading dash", func(c *Config) { c.Runtimes["ds4"] = Runtime{Type: "systemd", Service: "--system"} }, "must not start"},
+		{"docker service", func(c *Config) {
+			c.Runtimes["example"] = Runtime{Type: "docker", Container: "example", Service: "wrong"}
+		}, "cannot set service"},
+		{"leading dash", func(c *Config) { c.Runtimes["example"] = Runtime{Type: "systemd", Service: "--system"} }, "must not start"},
 		{"invalid endpoint", func(c *Config) {
-			c.Runtimes["ds4"] = Runtime{Type: "systemd", Service: "ds4.service", Endpoint: "not-a-url"}
+			c.Runtimes["example"] = Runtime{Type: "systemd", Service: "example.service", Endpoint: "not-a-url"}
 		}, "absolute URL"},
 		{"credential endpoint", func(c *Config) {
-			c.Runtimes["ds4"] = Runtime{Type: "systemd", Service: "ds4.service", Endpoint: "https://user:secret@example.test/v1"}
+			c.Runtimes["example"] = Runtime{Type: "systemd", Service: "example.service", Endpoint: "https://user:secret@example.test/v1"}
 		}, "must not contain credentials"},
 		{"empty reasoning level", func(c *Config) {
 			m := c.Models["flash"]
@@ -79,7 +81,7 @@ func TestWriteLoadAndKnownFields(t *testing.T) {
 
 func TestLoadRejectsTrailingDocument(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	data := "version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\n---\nunknown: true\n"
+	data := "version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\n---\nunknown: true\n"
 	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +91,7 @@ func TestLoadRejectsTrailingDocument(t *testing.T) {
 }
 
 func TestMarshalNormalizesOmittedModels(t *testing.T) {
-	cfg := &Config{Version: Version, Runtimes: map[string]Runtime{"ds4": {Type: "systemd", Service: "ds4.service"}}}
+	cfg := &Config{Version: Version, Runtimes: map[string]Runtime{"example": {Type: "systemd", Service: "example.service"}}}
 	data, err := Marshal(cfg, "json")
 	if err != nil {
 		t.Fatal(err)
@@ -104,7 +106,7 @@ func TestMarshalNormalizesOmittedModels(t *testing.T) {
 }
 
 func TestMarshalIncludesReasoning(t *testing.T) {
-	cfg := &Config{Version: Version, Runtimes: map[string]Runtime{"ds4": {Type: "systemd", Service: "ds4.service"}}, Models: map[string]Model{"flash": {Runtime: "ds4", Path: "/models/flash.gguf", Reasoning: []string{"none", "high"}}}}
+	cfg := &Config{Version: Version, Runtimes: map[string]Runtime{"example": {Type: "systemd", Service: "example.service"}}, Models: map[string]Model{"flash": {Runtime: "example", Path: "/models/flash.gguf", Reasoning: []string{"none", "high"}}}}
 	data, err := Marshal(cfg, "json")
 	if err != nil {
 		t.Fatal(err)
@@ -262,7 +264,7 @@ func TestValidateNoRuntimes(t *testing.T) {
 
 func TestValidateSystemdRequiresService(t *testing.T) {
 	cfg := validConfig()
-	cfg.Runtimes["ds4"] = Runtime{Type: "systemd"}
+	cfg.Runtimes["example"] = Runtime{Type: "systemd"}
 	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "requires service") {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -294,7 +296,7 @@ func TestValidateUnsupportedType(t *testing.T) {
 
 func TestValidateModelRequiresPath(t *testing.T) {
 	cfg := validConfig()
-	cfg.Models["flash"] = Model{Runtime: "ds4"}
+	cfg.Models["flash"] = Model{Runtime: "example"}
 	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "requires path") {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -308,7 +310,7 @@ func TestLoadReadError(t *testing.T) {
 
 func TestLoadValidationError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	data := "version: 99\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\nmodels: {}\n"
+	data := "version: 99\nruntimes:\n  example:\n    type: systemd\n    service: example.service\nmodels: {}\n"
 	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +331,7 @@ func TestWriteMarshalError(t *testing.T) {
 
 func TestLoadTrailingMalformed(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	data := "version: 1\nruntimes:\n  ds4:\n    type: systemd\n    service: ds4.service\n---\n[unclosed,"
+	data := "version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\n---\n[unclosed,"
 	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
 		t.Fatal(err)
 	}
