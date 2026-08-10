@@ -1,5 +1,6 @@
 version: 1
 node: dgx
+default_model: example-model
 runtimes:
   example:
     type: systemd

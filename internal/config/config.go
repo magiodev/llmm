@@ -35,10 +35,11 @@ var (
 )
 
 type Config struct {
-	Version  int                `yaml:"version" json:"version"`
-	Node     string             `yaml:"node,omitempty" json:"node,omitempty"`
-	Runtimes map[string]Runtime `yaml:"runtimes" json:"runtimes"`
-	Models   map[string]Model   `yaml:"models" json:"models"`
+	Version      int                `yaml:"version" json:"version"`
+	Node         string             `yaml:"node,omitempty" json:"node,omitempty"`
+	DefaultModel string             `yaml:"default_model,omitempty" json:"default_model,omitempty"`
+	Runtimes     map[string]Runtime `yaml:"runtimes" json:"runtimes"`
+	Models       map[string]Model   `yaml:"models" json:"models"`
 }
 
 type Runtime struct {
@@ -212,6 +213,11 @@ func (c *Config) Validate() error {
 					problems = append(problems, fmt.Sprintf("model %q artifact %d sha256 must be 64 hexadecimal characters", name, i))
 				}
 			}
+		}
+	}
+	if c.DefaultModel != "" {
+		if _, ok := c.Models[c.DefaultModel]; !ok {
+			problems = append(problems, fmt.Sprintf("default_model %q references unknown model", c.DefaultModel))
 		}
 	}
 	if len(problems) > 0 {

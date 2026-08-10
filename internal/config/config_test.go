@@ -63,6 +63,9 @@ func TestValidate(t *testing.T) {
 			m.Artifacts = []Artifact{{Path: "/a", SHA256: "nope"}}
 			c.Models["flash"] = m
 		}, "artifact 0 sha256 must be 64 hexadecimal"},
+		{"default model unknown", func(c *Config) {
+			c.DefaultModel = "missing"
+		}, "default_model \"missing\" references unknown model"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -117,6 +120,24 @@ func TestMarshalNormalizesOmittedModels(t *testing.T) {
 	}
 	if _, ok := decoded["models"].(map[string]any); !ok {
 		t.Fatalf("models = %#v, want object", decoded["models"])
+	}
+}
+
+func TestMarshalIncludesDefaultModel(t *testing.T) {
+	cfg := &Config{Version: Version, DefaultModel: "flash", Runtimes: map[string]Runtime{"example": {Type: "systemd", Service: "example.service"}}, Models: map[string]Model{"flash": {Runtime: "example", Path: "/models/flash.gguf"}}}
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := Marshal(cfg, "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded["default_model"] != "flash" {
+		t.Fatalf("default_model = %#v, want flash", decoded["default_model"])
 	}
 }
 

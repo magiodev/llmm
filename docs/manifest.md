@@ -55,6 +55,7 @@ models:
 |---|---|---:|---|
 | `version` | integer | yes | Manifest schema version. The current binary accepts `1`. |
 | `node` | string | no | Stable logical node identity, such as `dgx` or `dgx-2`. |
+| `default_model` | string | no | Model ID that trusted clients should treat as the operator default. |
 | `runtimes` | map | yes | Named runtime declarations. At least one entry is required. |
 | `models` | map | no | Named model metadata. Omission or an empty map normalizes to an empty map. |
 
@@ -95,6 +96,26 @@ dgx-lab
 Hardware descriptions such as `asus-ascent-gb10` or `dgx-spark` belong in inventory systems, not in the stable identity clients depend on.
 
 The field is currently descriptive. llmm exports it but does not compare it with the operating system hostname.
+
+## `default_model`
+
+```yaml
+default_model: example-model
+```
+
+`default_model` names the model ID that trusted clients and node-local workflows should treat as the operator's default. It must reference an existing model under `models`; validation fails when it does not.
+
+```yaml
+default_model: example-model
+models:
+  example-model:
+    runtime: example
+    path: /models/example-model.gguf
+```
+
+When omitted, no default is declared. Clients that need a default should fall back to their own deterministic rule (for example, alphabetical order). llmm does not invent a default on the operator's behalf.
+
+The field is exported in both YAML and JSON from `config show`, so remote clients can read `.default_model` directly instead of hardcoding a selection rule.
 
 ## `runtimes`
 
