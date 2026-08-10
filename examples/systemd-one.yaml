@@ -1,0 +1,18 @@
+# Minimal node: one systemd runtime and one model.
+version: 1
+node: dgx
+default_model: example-model
+runtimes:
+  example:
+    type: systemd
+    service: example.service
+    executable: /opt/example/example-server
+    endpoint: http://dgx:8001/v1
+models:
+  example-model:
+    runtime: example
+    format: gguf
+    path: /models/example-model.gguf
+    source: owner/example-model-gguf
+    context: 262144
+    output: 8192
