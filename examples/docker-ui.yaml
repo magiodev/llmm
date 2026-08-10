@@ -1,0 +1,21 @@
+# One model runtime plus a Docker-hosted web UI.
+version: 1
+node: dgx
+default_model: example-model
+runtimes:
+  example:
+    type: systemd
+    service: example.service
+    executable: /opt/example/example-server
+    endpoint: http://dgx:8001/v1
+  open-webui:
+    type: docker
+    container: open-webui
+    endpoint: http://dgx:8080
+models:
+  example-model:
+    runtime: example
+    format: gguf
+    path: /models/example-model.gguf
+    context: 262144
+    output: 8192

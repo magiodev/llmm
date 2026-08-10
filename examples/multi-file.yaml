@@ -1,0 +1,23 @@
+# Node with a multi-file model layout: shards, tokenizer, and mmproj companions.
+version: 1
+node: dgx
+default_model: vision
+runtimes:
+  vllm:
+    type: systemd
+    service: vllm.service
+    executable: /opt/vllm/vllm-server
+    endpoint: http://dgx:8001/v1
+models:
+  vision:
+    runtime: vllm
+    format: safetensors
+    path: /models/vision/model-00001-of-00002.safetensors
+    source: owner/vision-model
+    context: 131072
+    output: 8192
+    artifacts:
+      - path: /models/vision/model-00002-of-00002.safetensors
+      - path: /models/vision/tokenizer.json
+        sha256: ca22ae2f838e14077c22bc1c1417b71b45b5e5a3687bd96c2ac6e17fdb6261c0
+      - path: /models/vision/mmproj.mmap

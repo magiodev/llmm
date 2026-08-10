@@ -118,15 +118,35 @@ llmm --version
 llmm --help
 ```
 
-## Quick start
+## From zero to a healthy node
 
-Create a starter manifest:
+A new operator gets a node running in four steps: **declare** the node, **stock** it with model artifacts, **validate** it, then **export** the trusted-client config. A terminal session looks like this:
+
+```text
+$ llmm config init
+/home/alice/.config/llmm/config.yaml
+
+$ llmm config show --format json
+{"version":1,"node":"","runtimes":{"example":{"type":"systemd","service":"example.service"}},"models":{}}
+
+$ # edit the manifest: add real paths, endpoints, models, artifacts
+$ llmm doctor
+ok    config                   /home/alice/.config/llmm/config.yaml
+ok    runtime example              /opt/example/example-server
+ok    service example              example.service
+ok    model example-model  /models/example-model.gguf (86720111488 bytes)
+
+$ llmm status
+example              active
+```
+
+### 1. Declare the node
 
 ```bash
 llmm config init
 ```
 
-Edit `~/.config/llmm/config.yaml`:
+`config init` writes a minimal starter manifest (mode `0600`) and refuses to overwrite an existing file unless you pass `--force`. Edit it to describe reality: the node's name, the systemd services and Docker containers already running, and their endpoints.
 
 ```yaml
 version: 1
@@ -141,7 +161,27 @@ runtimes:
 models: {}
 ```
 
-Then validate the declaration against the machine:
+### 2. Stock the node with model artifacts
+
+Add each model under `models`, with the primary file `path`, advertised limits, and — for sharded or companion layouts — an `artifacts` list. `doctor` treats every declared artifact as part of the model:
+
+```yaml
+models:
+  vision:
+    runtime: vllm
+    format: safetensors
+    path: /models/vision/model-00001-of-00002.safetensors
+    context: 131072
+    output: 8192
+    artifacts:
+      - path: /models/vision/model-00002-of-00002.safetensors
+      - path: /models/vision/tokenizer.json
+      - path: /models/vision/mmproj.mmap
+```
+
+llmm does not download or install models. It records what is already on the machine and checks it.
+
+### 3. Validate the node
 
 ```bash
 llmm config validate
@@ -150,9 +190,24 @@ llmm status
 llmm models
 ```
 
-The starter file is created with mode `0600`. `config init` refuses to overwrite an existing manifest unless you pass `--force`.
+`doctor` checks host prerequisites (executables, loaded services, inspectable containers) and every model file and artifact — size by default, and `--deep` hashes and compares SHA-256 values. `status` reports what each native supervisor sees.
 
-Replace the example with facts from the machine you are declaring. A complete manifest is in [`examples/config.yaml`](examples/config.yaml); llmm does not install runtimes or create containers for you.
+### 4. Export trusted-client config
+
+```bash
+llmm config show
+llmm config show --format json
+```
+
+`config show` prints the normalized manifest for clients and scripts. Read it over SSH from a trusted client when you need remote access:
+
+```bash
+ssh dgx '$HOME/.local/bin/llmm config show --format json' | jq -r '.runtimes.example.endpoint'
+```
+
+The starter file is created with mode `0600`. `config init` refuses to overwrite an existing manifest unless you pass `--force`. Replace the example with facts from the machine you are declaring. A complete manifest is in [`examples/config.yaml`](examples/config.yaml); llmm does not install runtimes or create containers for you.
+
+Common node shapes ship as separate examples: [`examples/systemd-one.yaml`](examples/systemd-one.yaml), [`examples/multi-systemd.yaml`](examples/multi-systemd.yaml), [`examples/docker-ui.yaml`](examples/docker-ui.yaml), and [`examples/multi-file.yaml`](examples/multi-file.yaml).
 
 ## Commands
 
@@ -164,8 +219,11 @@ Replace the example with facts from the machine you are declaring. A complete ma
 | `llmm config show --format json` | Print normalized JSON for clients and scripts |
 | `llmm doctor` | Check config, executables, supervisor prerequisites, model files, and declared sizes |
 | `llmm doctor --deep` | Also hash model files and compare SHA-256 values |
+| `llmm doctor --format json` | Emit explicit check objects plus an overall `success` boolean |
 | `llmm models` | List model ID, runtime, and path |
+| `llmm models --format json` | Emit model objects with limits, default marker, and artifacts |
 | `llmm status [runtime]` | Show every runtime or one named runtime |
+| `llmm status --format json` | Emit runtime state objects for automation |
 | `llmm start <runtime>` | Start through the configured native supervisor |
 | `llmm stop <runtime>` | Stop through the configured native supervisor |
 | `llmm restart <runtime>` | Restart through the configured native supervisor |
@@ -296,7 +354,7 @@ Bug reports, documentation fixes, and well-scoped feature PRs are welcome. See [
 - [Usage and operations](docs/usage.md)
 - [Manifest reference](docs/manifest.md)
 - [Remote clients and clusters](docs/remote-clients.md)
-- [Example manifest](examples/config.yaml)
+- [Example manifests](examples/config.yaml) · [systemd-one](examples/systemd-one.yaml) · [multi-systemd](examples/multi-systemd.yaml) · [docker-ui](examples/docker-ui.yaml) · [multi-file](examples/multi-file.yaml)
 - [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Code of Conduct](CODE_OF_CONDUCT.md) · [Changelog](CHANGELOG.md)
 
 ## License
