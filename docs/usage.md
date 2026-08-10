@@ -2,6 +2,18 @@
 
 This guide covers installation, configuration selection, every command, normal operating workflows, shell completion, exit behavior, and troubleshooting.
 
+## Output style
+
+Command output follows a shared, calm convention so a first-run operator can parse it at a glance:
+
+- **Sectioned checks.** `doctor` prints one labeled line per check (`ok`/`fail`) with a fixed-width label column.
+- **Tabular listings.** `status` and `models` use fixed-width or tab-separated columns, so output is easy to read and diff.
+- **Compact summaries.** Every command prints only what changed or matters; nothing is decorated with progress bars or banners.
+- **Clear next steps.** Failure output names the object and the reason, and `doctor` reports every problem in one pass so you can fix them together.
+- **Machine-readable stays boring.** `--format json` is deterministic and color-free; human output stays stable even as JSON evolves.
+
+llmm intentionally avoids color and interactive full-screen modes. Keep the terminal surface boring and dependable; put richness in the docs and examples instead.
+
 ## Requirements
 
 Building llmm requires Go 1.22 or newer. Runtime requirements depend on the manifest:
