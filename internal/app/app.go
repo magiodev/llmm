@@ -259,6 +259,22 @@ func doctorCommand(opts *options) *cobra.Command {
 					cancel()
 					check(hashErr == nil && sum == strings.ToLower(model.SHA256), "sha256 "+name, sum)
 				}
+				for i, artifact := range model.Artifacts {
+					info, statErr := os.Stat(artifact.Path)
+					ok := statErr == nil && info.Mode().IsRegular()
+					detail := artifact.Path
+					if ok && artifact.Size > 0 {
+						ok = info.Size() == artifact.Size
+						detail = fmt.Sprintf("%s (%d bytes)", artifact.Path, info.Size())
+					}
+					check(ok, "artifact "+name, detail)
+					if deep && ok && artifact.SHA256 != "" {
+						hashCtx, cancel := context.WithTimeout(cmd.Context(), deepHashTimeout)
+						sum, hashErr := fileSHA256(hashCtx, artifact.Path)
+						cancel()
+						check(hashErr == nil && sum == strings.ToLower(artifact.SHA256), fmt.Sprintf("sha256 %s artifact %d", name, i), sum)
+					}
+				}
 			}
 			if len(failures) > 0 {
 				return fmt.Errorf("doctor found %d problem(s): %s", len(failures), strings.Join(failures, "; "))

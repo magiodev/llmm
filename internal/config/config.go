@@ -49,16 +49,23 @@ type Runtime struct {
 	Endpoint   string `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
 }
 
+type Artifact struct {
+	Path   string `yaml:"path" json:"path"`
+	SHA256 string `yaml:"sha256,omitempty" json:"sha256,omitempty"`
+	Size   int64  `yaml:"size,omitempty" json:"size,omitempty"`
+}
+
 type Model struct {
-	Runtime   string   `yaml:"runtime" json:"runtime"`
-	Format    string   `yaml:"format" json:"format"`
-	Path      string   `yaml:"path" json:"path"`
-	Source    string   `yaml:"source,omitempty" json:"source,omitempty"`
-	SHA256    string   `yaml:"sha256,omitempty" json:"sha256,omitempty"`
-	Size      int64    `yaml:"size,omitempty" json:"size,omitempty"`
-	Context   int      `yaml:"context,omitempty" json:"context,omitempty"`
-	Output    int      `yaml:"output,omitempty" json:"output,omitempty"`
-	Reasoning []string `yaml:"reasoning,omitempty" json:"reasoning,omitempty"`
+	Runtime   string     `yaml:"runtime" json:"runtime"`
+	Format    string     `yaml:"format" json:"format"`
+	Path      string     `yaml:"path" json:"path"`
+	Artifacts []Artifact `yaml:"artifacts,omitempty" json:"artifacts,omitempty"`
+	Source    string     `yaml:"source,omitempty" json:"source,omitempty"`
+	SHA256    string     `yaml:"sha256,omitempty" json:"sha256,omitempty"`
+	Size      int64      `yaml:"size,omitempty" json:"size,omitempty"`
+	Context   int        `yaml:"context,omitempty" json:"context,omitempty"`
+	Output    int        `yaml:"output,omitempty" json:"output,omitempty"`
+	Reasoning []string   `yaml:"reasoning,omitempty" json:"reasoning,omitempty"`
 }
 
 func Marshal(c *Config, format string) ([]byte, error) {
@@ -190,6 +197,20 @@ func (c *Config) Validate() error {
 		for _, level := range model.Reasoning {
 			if strings.TrimSpace(level) == "" {
 				problems = append(problems, fmt.Sprintf("model %q has an empty reasoning level", name))
+			}
+		}
+		for i, artifact := range model.Artifacts {
+			if strings.TrimSpace(artifact.Path) == "" {
+				problems = append(problems, fmt.Sprintf("model %q artifact %d requires path", name, i))
+			}
+			if artifact.Size < 0 {
+				problems = append(problems, fmt.Sprintf("model %q artifact %d size must not be negative", name, i))
+			}
+			if artifact.SHA256 != "" {
+				digest, err := hex.DecodeString(artifact.SHA256)
+				if err != nil || len(digest) != 32 {
+					problems = append(problems, fmt.Sprintf("model %q artifact %d sha256 must be 64 hexadecimal characters", name, i))
+				}
 			}
 		}
 	}

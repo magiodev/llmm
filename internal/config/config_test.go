@@ -48,6 +48,21 @@ func TestValidate(t *testing.T) {
 			m.Reasoning = []string{""}
 			c.Models["flash"] = m
 		}, "empty reasoning level"},
+		{"artifact missing path", func(c *Config) {
+			m := c.Models["flash"]
+			m.Artifacts = []Artifact{{Path: ""}}
+			c.Models["flash"] = m
+		}, "artifact 0 requires path"},
+		{"artifact negative size", func(c *Config) {
+			m := c.Models["flash"]
+			m.Artifacts = []Artifact{{Path: "/a", Size: -1}}
+			c.Models["flash"] = m
+		}, "artifact 0 size must not be negative"},
+		{"artifact invalid checksum", func(c *Config) {
+			m := c.Models["flash"]
+			m.Artifacts = []Artifact{{Path: "/a", SHA256: "nope"}}
+			c.Models["flash"] = m
+		}, "artifact 0 sha256 must be 64 hexadecimal"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

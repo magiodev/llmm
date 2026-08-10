@@ -4,6 +4,7 @@ All notable changes are documented here. This project follows [Semantic Versioni
 
 ## [Unreleased]
 
+- First-class model artifacts: multi-file layouts via a model-local `artifacts` list; `doctor` and `doctor --deep` now validate every declared artifact (path, size, SHA-256).
 - Docs and discoverability: README overhaul, contributor/security/conduct guides, Makefile targets.
 - CI: coverage gate enforcing statement, block (branch), and line thresholds.
 - Tests: hardened branch coverage across `app`, `config`, and `runtime`.
