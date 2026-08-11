@@ -310,6 +310,22 @@ llmm downloads the artifact to the model's declared `path`, verifies the declare
 The `source` field on a model records the provenance origin for its artifact (for example a `owner/repo` model reference). It is additive and optional, and is exported unchanged in `config show` YAML and JSON.
 
 `config validate` pins provenance safety: when `source` is present it must contain no whitespace, must not start with `-` (option-argument confusion), and must not embed credentials (`@`). A model with `source` can declare `size` and `sha256` to integrity-pin its artifact; `llmm verify` and `llmm installed` (when present) consume these declared pins so drift between the declared digest and the on-disk artifact is detected and reported.
+
+## Installed-artifact state
+
+```bash
+llmm installed
+```
+
+Reports, per declared model, whether machine-managed install state records it as installed or missing, plus a summary count:
+
+```text
+a	installed	/models/a.gguf
+b	missing
+total 2 (1 installed, 1 missing)
+```
+
+This reads the `installed.yaml` state file written by `llmm install`. It reports state only; use `doctor --deep` or `verify` to check the on-disk artifact's integrity.
 ## Run diagnostics
 
 ```bash
