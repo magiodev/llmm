@@ -353,6 +353,7 @@ Bug reports, documentation fixes, and well-scoped feature PRs are welcome. See [
 
 - [Usage and operations](docs/usage.md)
 - [Manifest reference](docs/manifest.md)
+- [Phase 1 contract](docs/contract.md)
 - [Remote clients and clusters](docs/remote-clients.md)
 - [Example manifests](examples/config.yaml) · [systemd-one](examples/systemd-one.yaml) · [multi-systemd](examples/multi-systemd.yaml) · [docker-ui](examples/docker-ui.yaml) · [multi-file](examples/multi-file.yaml)
 - [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Code of Conduct](CODE_OF_CONDUCT.md) · [Changelog](CHANGELOG.md)
