@@ -195,6 +195,15 @@ func (c *Config) Validate() error {
 				problems = append(problems, fmt.Sprintf("model %q sha256 must be 64 hexadecimal characters", name))
 			}
 		}
+		if model.Source != "" {
+			if strings.ContainsAny(model.Source, " 	\n\r") {
+				problems = append(problems, fmt.Sprintf("model %q source must not contain whitespace", name))
+			} else if strings.HasPrefix(model.Source, "-") {
+				problems = append(problems, fmt.Sprintf("model %q source must not start with '-'", name))
+			} else if strings.Contains(model.Source, "@") {
+				problems = append(problems, fmt.Sprintf("model %q source must not contain credentials", name))
+			}
+		}
 		for _, level := range model.Reasoning {
 			if strings.TrimSpace(level) == "" {
 				problems = append(problems, fmt.Sprintf("model %q has an empty reasoning level", name))

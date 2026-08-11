@@ -34,6 +34,13 @@ Settled by #4. One logical served model is keyed once under `models`, with one r
 
 This representation is the foundation for future fetch/install/verify work. It does not itself download or install anything.
 
+## Provenance and integrity
+
+Settled by #20. `source` on a model records the provenance origin (e.g. an `owner/repo` model reference); it is additive, optional, and exported unchanged in `config show`.
+
+- When `source` is present, `config validate` rejects whitespace, a leading `-`, and embedded credentials (`@`).
+- A model may declare `size` and `sha256` to integrity-pin its artifact; `verify` and installed-state reporting consume these pins so drift between the declared digest and the on-disk artifact is detected and reported.
+
 ## Schema and versioning strategy
 
 - **Additive changes** stay in version `1`: new optional fields that old binaries and old clients safely ignore (for example, `artifacts` and `default_model`).

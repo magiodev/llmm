@@ -21,6 +21,16 @@ func TestMarshalNormalizesOmittedModels(t *testing.T) {
 		t.Fatalf("models = %#v, want object", decoded["models"])
 	}
 }
+func TestMarshalIncludesSource(t *testing.T) {
+	cfg := &Config{Version: Version, Runtimes: map[string]Runtime{"example": {Type: "systemd", Service: "example.service"}}, Models: map[string]Model{"flash": {Runtime: "example", Path: "/models/flash.gguf", Source: "owner/example-model-gguf"}}}
+	data, err := Marshal(cfg, "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"source": "owner/example-model-gguf"`) {
+		t.Fatalf("source not exported: %s", data)
+	}
+}
 func TestMarshalIncludesDefaultModel(t *testing.T) {
 	cfg := &Config{Version: Version, DefaultModel: "flash", Runtimes: map[string]Runtime{"example": {Type: "systemd", Service: "example.service"}}, Models: map[string]Model{"flash": {Runtime: "example", Path: "/models/flash.gguf"}}}
 	if err := cfg.Validate(); err != nil {

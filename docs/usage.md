@@ -305,6 +305,11 @@ llmm downloads the artifact to the model's declared `path`, verifies the declare
 ```json
 [{"name":"example-model","runtime":"example","path":"/models/example-model.gguf","context":262144,"output":8192,"default":true}]
 ```
+## Provenance and integrity
+
+The `source` field on a model records the provenance origin for its artifact (for example a `owner/repo` model reference). It is additive and optional, and is exported unchanged in `config show` YAML and JSON.
+
+`config validate` pins provenance safety: when `source` is present it must contain no whitespace, must not start with `-` (option-argument confusion), and must not embed credentials (`@`). A model with `source` can declare `size` and `sha256` to integrity-pin its artifact; `llmm verify` and `llmm installed` (when present) consume these declared pins so drift between the declared digest and the on-disk artifact is detected and reported.
 ## Run diagnostics
 
 ```bash
