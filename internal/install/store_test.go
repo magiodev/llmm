@@ -14,10 +14,12 @@ func restoreVars(t *testing.T) {
 	l, mk, ct, rn := lstat, mkdirAll, createTemp, renameFile
 	ch, wd, sy, cl := chmod, writeData, syncFile, closeFile
 	ms := marshalState
+	rf, of, rm := readFile, openFile, removeFile
 	t.Cleanup(func() {
 		lstat, mkdirAll, createTemp, renameFile = l, mk, ct, rn
 		chmod, writeData, syncFile, closeFile = ch, wd, sy, cl
 		marshalState = ms
+		readFile, openFile, removeFile = rf, of, rm
 	})
 }
 
