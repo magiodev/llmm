@@ -4,6 +4,7 @@ All notable changes are documented here. This project follows [Semantic Versioni
 
 ## [Unreleased]
 
+- `llmm install <model>`: fetch a declared model from its `source`, verify size/SHA-256, atomic publish, and record machine-managed installed state (`installed.yaml`).
 - Docs and discoverability: README overhaul, contributor/security/conduct guides, Makefile targets.
 - CI: coverage gate enforcing statement, block (branch), and line thresholds.
 - Tests: hardened branch coverage across `app`, `config`, and `runtime`.
