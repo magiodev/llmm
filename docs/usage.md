@@ -328,6 +328,10 @@ total 2 (1 installed, 1 missing)
 ```
 
 This reads the `installed.yaml` state file written by `llmm install`. It reports state only; use `doctor --deep` or `verify` to check the on-disk artifact's integrity.
+
+## Preflight on start
+
+`llmm start <runtime>` (and `restart`) gates the action on artifact readiness: every model bound to that runtime must have its declared artifact present as a regular file, otherwise the runtime is not started and the command fails with the missing models listed. `stop` does not require artifacts. This closes the loop between declared (manifest), installed (on disk), and running (supervisor) state.
 ## Run diagnostics
 
 ```bash
