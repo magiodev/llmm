@@ -10,6 +10,7 @@ All notable changes are documented here. This project follows [Semantic Versioni
 - Explicit `default_model` in exported config: operator-declared default model ID, validated against `models`, emitted in YAML and JSON.
 - Machine-readable output: `--format text|json` on `status`, `models`, and `doctor`; JSON is deterministic, color-free, and preserves non-zero exit on failures.
 - First-run UX: README restructured around declare → stock → validate → export, a terminal demo sequence, and example manifests for common node shapes (single systemd, multi-systemd, Docker UI, multi-file models).
+- `llmm installed`: report installed-artifact state (installed/missing) with a summary.
 - Docs and discoverability: README overhaul, contributor/security/conduct guides, Makefile targets.
 - CI: coverage gate enforcing statement, block (branch), and line thresholds.
 - Tests: hardened branch coverage across `app`, `config`, and `runtime`.

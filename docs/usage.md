@@ -305,6 +305,22 @@ llmm downloads the artifact to the model's declared `path`, verifies the declare
 ```json
 [{"name":"example-model","runtime":"example","path":"/models/example-model.gguf","context":262144,"output":8192,"default":true}]
 ```
+
+## Installed-artifact state
+
+```bash
+llmm installed
+```
+
+Reports, per declared model, whether machine-managed install state records it as installed or missing, plus a summary count:
+
+```text
+a	installed	/models/a.gguf
+b	missing
+total 2 (1 installed, 1 missing)
+```
+
+This reads the `installed.yaml` state file written by `llmm install`. It reports state only; use `doctor --deep` or `verify` to check the on-disk artifact's integrity.
 ## Run diagnostics
 
 ```bash
