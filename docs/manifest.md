@@ -36,6 +36,17 @@ models:
     size: 86720111488
     context: 262144
     output: 8192
+  vision-model:
+    runtime: vllm
+    format: safetensors
+    path: /models/vision/model-00001-of-00002.safetensors
+    context: 131072
+    output: 8192
+    artifacts:
+      - path: /models/vision/model-00002-of-00002.safetensors
+      - path: /models/vision/tokenizer.json
+        sha256: ca22ae2f838e14077c22bc1c1417b71b45b5e5a3687bd96c2ac6e17fdb6261c0
+      - path: /models/vision/mmproj.mmap
 ```
 
 ## Top-level fields
@@ -44,6 +55,7 @@ models:
 |---|---|---:|---|
 | `version` | integer | yes | Manifest schema version. The current binary accepts `1`. |
 | `node` | string | no | Stable logical node identity, such as `dgx` or `dgx-2`. |
+| `default_model` | string | no | Model ID that trusted clients should treat as the operator default. |
 | `runtimes` | map | yes | Named runtime declarations. At least one entry is required. |
 | `models` | map | no | Named model metadata. Omission or an empty map normalizes to an empty map. |
 
@@ -84,6 +96,26 @@ dgx-lab
 Hardware descriptions such as `asus-ascent-gb10` or `dgx-spark` belong in inventory systems, not in the stable identity clients depend on.
 
 The field is currently descriptive. llmm exports it but does not compare it with the operating system hostname.
+
+## `default_model`
+
+```yaml
+default_model: example-model
+```
+
+`default_model` names the model ID that trusted clients and node-local workflows should treat as the operator's default. It must reference an existing model under `models`; validation fails when it does not.
+
+```yaml
+default_model: example-model
+models:
+  example-model:
+    runtime: example
+    path: /models/example-model.gguf
+```
+
+When omitted, no default is declared. Clients that need a default should fall back to their own deterministic rule (for example, alphabetical order). llmm does not invent a default on the operator's behalf.
+
+The field is exported in both YAML and JSON from `config show`, so remote clients can read `.default_model` directly instead of hardcoding a selection rule.
 
 ## `runtimes`
 
@@ -218,6 +250,7 @@ models:
 | `runtime` | string | yes | Key under `runtimes` that serves the model. |
 | `format` | string | no | Artifact format such as `gguf` or `safetensors`. |
 | `path` | string | yes | Local artifact path checked by doctor. |
+| `artifacts` | list of artifacts | no | Additional files that must exist and be valid (companions, shards). |
 | `source` | string | no | Human-readable source repository or provenance. |
 | `sha256` | string | no | Expected 64-character hexadecimal digest used by `doctor --deep`. |
 | `size` | integer | no | Expected bytes used by normal doctor; may not be negative. |
@@ -251,7 +284,31 @@ path: /models/example-model.gguf
 
 Doctor requires this path to exist and be a regular file. FIFOs, sockets, devices, and directories fail. Prefer absolute paths so behavior does not depend on the working directory.
 
-For sharded models, version 1 expects one path per model entry and has no shard-set abstraction. Do not invent a fake aggregate path. Either point to a concrete artifact used by your runtime or omit that model until the schema supports the real representation.
+For a single-file model, `path` is the entire layout. For a multi-file model, `path` is the primary served file and `artifacts` lists the rest of the set. Do not invent a fake aggregate path.
+
+### `artifacts`
+
+```yaml
+artifacts:
+  - path: /models/vision/model-00002-of-00002.safetensors
+  - path: /models/vision/tokenizer.json
+    sha256: ca22ae2f838e14077c22bc1c1417b71b45b5e5a3687bd96c2ac6e17fdb6261c0
+  - path: /models/vision/mmproj.mmap
+```
+
+`artifacts` is an optional list of additional files that belong to a multi-file model layout, such as sharded GGUF parts, safetensors companions, tokenizers, or an mmproj companion. It is empty for the common single-file case.
+
+Each artifact carries:
+
+| Field | Type | Required | Meaning |
+|---|---:|---|
+| `path` | string | yes | Local path checked by doctor; must not be empty. |
+| `sha256` | string | no | Expected 64-character hexadecimal digest used by `doctor --deep`. |
+| `size` | integer | no | Expected bytes used by normal doctor; may not be negative. |
+
+Doctor checks that every artifact exists as a regular file, verifies its declared size, and under `--deep` hashes and compares its SHA-256. An artifact is independent of the model's own `path`, `sha256`, and `size` fields, which describe the primary served file.
+
+This representation is the foundation for future node-local fetch, install, and prune workflows. It does not itself download or install anything.
 
 ### `source`
 

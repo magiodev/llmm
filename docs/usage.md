@@ -2,6 +2,18 @@
 
 This guide covers installation, configuration selection, every command, normal operating workflows, shell completion, exit behavior, and troubleshooting.
 
+## Output style
+
+Command output follows a shared, calm convention so a first-run operator can parse it at a glance:
+
+- **Sectioned checks.** `doctor` prints one labeled line per check (`ok`/`fail`) with a fixed-width label column.
+- **Tabular listings.** `status` and `models` use fixed-width or tab-separated columns, so output is easy to read and diff.
+- **Compact summaries.** Every command prints only what changed or matters; nothing is decorated with progress bars or banners.
+- **Clear next steps.** Failure output names the object and the reason, and `doctor` reports every problem in one pass so you can fix them together.
+- **Machine-readable stays boring.** `--format json` is deterministic and color-free; human output stays stable even as JSON evolves.
+
+llmm intentionally avoids color and interactive full-screen modes. Keep the terminal surface boring and dependable; put richness in the docs and examples instead.
+
 ## Requirements
 
 Building llmm requires Go 1.22 or newer. Runtime requirements depend on the manifest:
@@ -205,6 +217,18 @@ Status meanings come from the native supervisor:
 
 `active` or `running` means the supervisor sees a live workload. It does not prove that a model has finished loading or that an HTTP endpoint is healthy.
 
+### Machine-readable output
+
+`status`, `models`, and `doctor` accept `--format text|json` (default `text`). JSON output is deterministic, color-free, and free of prose; it is meant for automation. Failures still produce a non-zero exit even when emitting JSON, so scripts can rely on the exit code rather than parsing text.
+
+`status --format json` emits an array of runtime objects:
+
+```json
+[{"name":"example","type":"systemd","state":"active"}]
+```
+
+`state` is the supervisor's reported state, or `"error"` when the supervisor call fails (and llmm still exits non-zero).
+
 ## Control runtimes
 
 ```bash
@@ -276,6 +300,11 @@ llmm downloads the artifact to the model's declared `path`, verifies the declare
 
 `source` must be an absolute `http` or `https` URL without embedded credentials. Models without a `source` cannot be installed.
 
+`models --format json` emits an array of model objects with the primary path, advertised limits, a `default` marker when the model ID equals `default_model`, and any declared artifacts:
+
+```json
+[{"name":"example-model","runtime":"example","path":"/models/example-model.gguf","context":262144,"output":8192,"default":true}]
+```
 ## Run diagnostics
 
 ```bash
@@ -312,6 +341,14 @@ llmm doctor --deep
 For each model with `sha256`, this reads the complete file and compares the digest. Large files can take time and consume substantial storage bandwidth; a single hash is capped at 30 minutes. The normal doctor checks size without hashing the whole artifact.
 
 Deep mode does not fail models that omit `sha256`; it simply has no digest to verify.
+
+`doctor --format json` emits an object with an overall `success` boolean and an explicit `checks` array, each with `ok`, `label`, and `detail`:
+
+```json
+{"success":false,"checks":[{"ok":true,"label":"config","detail":"/home/alice/.config/llmm/config.yaml"},{"ok":false,"label":"model example-model","detail":"/models/example-model.gguf"}]}
+```
+
+A failing doctor still exits non-zero even in JSON mode.
 
 ### What doctor does not check
 

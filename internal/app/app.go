@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -32,6 +33,46 @@ var (
 type options struct {
 	configPath string
 	quiet      bool
+}
+
+type runtimeStatus struct {
+	Name  string `json:"name"`
+	Type  string `json:"type"`
+	State string `json:"state"`
+}
+
+type modelInfo struct {
+	Name      string            `json:"name"`
+	Runtime   string            `json:"runtime"`
+	Path      string            `json:"path"`
+	Context   int               `json:"context,omitempty"`
+	Output    int               `json:"output,omitempty"`
+	Default   bool              `json:"default,omitempty"`
+	Artifacts []config.Artifact `json:"artifacts,omitempty"`
+}
+
+type doctorCheck struct {
+	OK     bool   `json:"ok"`
+	Label  string `json:"label"`
+	Detail string `json:"detail"`
+}
+
+type doctorResult struct {
+	Success bool          `json:"success"`
+	Checks  []doctorCheck `json:"checks"`
+}
+
+// writeJSON marshals value as indented JSON and writes it with a trailing
+// newline. value is always a fixed-shape slice or struct whose fields are
+// plain scalars or slices, so json.MarshalIndent cannot return an error;
+// only the write itself can fail.
+func writeJSON(cmd *cobra.Command, value any) error {
+	payload, _ := json.MarshalIndent(value, "", "  ")
+	if _, err := cmd.OutOrStdout().Write(payload); err != nil {
+		return err
+	}
+	fmt.Fprintln(cmd.OutOrStdout())
+	return nil
 }
 
 func New(version string) *cobra.Command {
@@ -141,7 +182,8 @@ func actionCommand(opts *options, action string) *cobra.Command {
 }
 
 func statusCommand(opts *options) *cobra.Command {
-	return &cobra.Command{
+	var format string
+	command := &cobra.Command{
 		Use: "status [runtime]", Short: "Show runtime status", Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := config.Load(opts.configPath)
@@ -156,16 +198,29 @@ func statusCommand(opts *options) *cobra.Command {
 				names = args
 			}
 			var failures []string
+			entries := make([]runtimeStatus, 0, len(names))
 			for _, name := range names {
 				ctx, cancel := context.WithTimeout(cmd.Context(), supervisorTimeout)
 				state, statusErr := runtimeops.Status(ctx, cfg.Runtimes[name])
 				cancel()
+				entries = append(entries, runtimeStatus{Name: name, Type: cfg.Runtimes[name].Type, State: state})
 				if statusErr != nil {
-					fmt.Fprintf(cmd.OutOrStdout(), "%-16s error\n", name)
+					if format == "json" {
+						entries[len(entries)-1].State = "error"
+					} else {
+						fmt.Fprintf(cmd.OutOrStdout(), "%-16s error\n", name)
+					}
 					failures = append(failures, name+": "+statusErr.Error())
 					continue
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%-16s %s\n", name, state)
+				if format != "json" {
+					fmt.Fprintf(cmd.OutOrStdout(), "%-16s %s\n", name, state)
+				}
+			}
+			if format == "json" {
+				if err := writeJSON(cmd, entries); err != nil {
+					return err
+				}
 			}
 			if len(failures) > 0 {
 				return errors.New(strings.Join(failures, "; "))
@@ -173,10 +228,13 @@ func statusCommand(opts *options) *cobra.Command {
 			return nil
 		},
 	}
+	command.Flags().StringVar(&format, "format", "text", "output format: text or json")
+	return command
 }
 
 func modelsCommand(opts *options) *cobra.Command {
-	return &cobra.Command{
+	var format string
+	command := &cobra.Command{
 		Use: "models", Short: "List configured models", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := config.Load(opts.configPath)
@@ -188,17 +246,35 @@ func modelsCommand(opts *options) *cobra.Command {
 				names = append(names, name)
 			}
 			sort.Strings(names)
-			for _, name := range names {
-				model := cfg.Models[name]
-				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\n", name, model.Runtime, model.Path)
+			if format == "json" {
+				infos := make([]modelInfo, 0, len(names))
+				for _, name := range names {
+					model := cfg.Models[name]
+					infos = append(infos, modelInfo{
+						Name: name, Runtime: model.Runtime, Path: model.Path,
+						Context: model.Context, Output: model.Output,
+						Default: name == cfg.DefaultModel, Artifacts: model.Artifacts,
+					})
+				}
+				if err := writeJSON(cmd, infos); err != nil {
+					return err
+				}
+			} else {
+				for _, name := range names {
+					model := cfg.Models[name]
+					fmt.Fprintf(cmd.OutOrStdout(), "%s	%s	%s\n", name, model.Runtime, model.Path)
+				}
 			}
 			return nil
 		},
 	}
+	command.Flags().StringVar(&format, "format", "text", "output format: text or json")
+	return command
 }
 
 func doctorCommand(opts *options) *cobra.Command {
 	var deep bool
+	var format string
 	command := &cobra.Command{
 		Use: "doctor", Short: "Validate config, runtimes, executables, and model files", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -207,13 +283,19 @@ func doctorCommand(opts *options) *cobra.Command {
 				return err
 			}
 			var failures []string
+			var checks []doctorCheck
 			check := func(ok bool, label, detail string) {
-				state := "ok"
+				checks = append(checks, doctorCheck{OK: ok, Label: label, Detail: detail})
 				if !ok {
-					state = "fail"
 					failures = append(failures, label+": "+detail)
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%-5s %-24s %s\n", state, label, detail)
+				if format != "json" {
+					state := "ok"
+					if !ok {
+						state = "fail"
+					}
+					fmt.Fprintf(cmd.OutOrStdout(), "%-5s %-24s %s\n", state, label, detail)
+				}
 			}
 			check(true, "config", opts.configPath)
 			for _, name := range runtimeops.Names(cfg) {
@@ -259,6 +341,27 @@ func doctorCommand(opts *options) *cobra.Command {
 					cancel()
 					check(hashErr == nil && sum == strings.ToLower(model.SHA256), "sha256 "+name, sum)
 				}
+				for i, artifact := range model.Artifacts {
+					info, statErr := os.Stat(artifact.Path)
+					ok := statErr == nil && info.Mode().IsRegular()
+					detail := artifact.Path
+					if ok && artifact.Size > 0 {
+						ok = info.Size() == artifact.Size
+						detail = fmt.Sprintf("%s (%d bytes)", artifact.Path, info.Size())
+					}
+					check(ok, "artifact "+name, detail)
+					if deep && ok && artifact.SHA256 != "" {
+						hashCtx, cancel := context.WithTimeout(cmd.Context(), deepHashTimeout)
+						sum, hashErr := fileSHA256(hashCtx, artifact.Path)
+						cancel()
+						check(hashErr == nil && sum == strings.ToLower(artifact.SHA256), fmt.Sprintf("sha256 %s artifact %d", name, i), sum)
+					}
+				}
+			}
+			if format == "json" {
+				if err := writeJSON(cmd, doctorResult{Success: len(failures) == 0, Checks: checks}); err != nil {
+					return err
+				}
 			}
 			if len(failures) > 0 {
 				return fmt.Errorf("doctor found %d problem(s): %s", len(failures), strings.Join(failures, "; "))
@@ -267,6 +370,7 @@ func doctorCommand(opts *options) *cobra.Command {
 		},
 	}
 	command.Flags().BoolVar(&deep, "deep", false, "also verify model SHA-256 checksums")
+	command.Flags().StringVar(&format, "format", "text", "output format: text or json")
 	return command
 }
 

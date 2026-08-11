@@ -1,0 +1,28 @@
+# Node with several systemd runtimes, each serving its own model.
+version: 1
+node: dgx
+default_model: flash
+runtimes:
+  llama:
+    type: systemd
+    service: llama.service
+    executable: /opt/llama/llama-server
+    endpoint: http://dgx:8001/v1
+  mistral:
+    type: systemd
+    service: mistral.service
+    executable: /opt/mistral/mistral-server
+    endpoint: http://dgx:8002/v1
+models:
+  flash:
+    runtime: llama
+    format: gguf
+    path: /models/flash.gguf
+    context: 262144
+    output: 8192
+  mistral:
+    runtime: mistral
+    format: gguf
+    path: /models/mistral.gguf
+    context: 131072
+    output: 8192
