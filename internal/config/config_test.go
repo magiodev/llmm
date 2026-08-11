@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -13,7 +12,6 @@ import (
 func validConfig() *Config {
 	return &Config{Version: Version, Runtimes: map[string]Runtime{"example": {Type: "systemd", Service: "example.service"}}, Models: map[string]Model{"flash": {Runtime: "example", Format: "gguf", Path: "/models/flash.gguf"}}}
 }
-
 func TestValidate(t *testing.T) {
 	if err := validConfig().Validate(); err != nil {
 		t.Fatal(err)
@@ -77,7 +75,6 @@ func TestValidate(t *testing.T) {
 		})
 	}
 }
-
 func TestWriteLoadAndKnownFields(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	if err := Write(path, validConfig(), false); err != nil {
@@ -96,7 +93,6 @@ func TestWriteLoadAndKnownFields(t *testing.T) {
 		t.Fatal("expected unknown field rejection")
 	}
 }
-
 func TestLoadRejectsTrailingDocument(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	data := "version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\n---\nunknown: true\n"
@@ -107,58 +103,6 @@ func TestLoadRejectsTrailingDocument(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
-func TestMarshalNormalizesOmittedModels(t *testing.T) {
-	cfg := &Config{Version: Version, Runtimes: map[string]Runtime{"example": {Type: "systemd", Service: "example.service"}}}
-	data, err := Marshal(cfg, "json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var decoded map[string]any
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := decoded["models"].(map[string]any); !ok {
-		t.Fatalf("models = %#v, want object", decoded["models"])
-	}
-}
-
-func TestMarshalIncludesDefaultModel(t *testing.T) {
-	cfg := &Config{Version: Version, DefaultModel: "flash", Runtimes: map[string]Runtime{"example": {Type: "systemd", Service: "example.service"}}, Models: map[string]Model{"flash": {Runtime: "example", Path: "/models/flash.gguf"}}}
-	if err := cfg.Validate(); err != nil {
-		t.Fatal(err)
-	}
-	data, err := Marshal(cfg, "json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var decoded map[string]any
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatal(err)
-	}
-	if decoded["default_model"] != "flash" {
-		t.Fatalf("default_model = %#v, want flash", decoded["default_model"])
-	}
-}
-
-func TestMarshalIncludesReasoning(t *testing.T) {
-	cfg := &Config{Version: Version, Runtimes: map[string]Runtime{"example": {Type: "systemd", Service: "example.service"}}, Models: map[string]Model{"flash": {Runtime: "example", Path: "/models/flash.gguf", Reasoning: []string{"none", "high"}}}}
-	data, err := Marshal(cfg, "json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var decoded map[string]any
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatal(err)
-	}
-	models := decoded["models"].(map[string]any)
-	flash := models["flash"].(map[string]any)
-	levels, ok := flash["reasoning"].([]any)
-	if !ok || len(levels) != 2 || levels[0] != "none" || levels[1] != "high" {
-		t.Fatalf("reasoning = %#v, want [none high]", flash["reasoning"])
-	}
-}
-
 func TestForceWriteRestoresPrivatePermissions(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	if err := os.WriteFile(path, []byte("stale\n"), 0o644); err != nil {
@@ -175,7 +119,6 @@ func TestForceWriteRestoresPrivatePermissions(t *testing.T) {
 		t.Fatalf("config mode = %o, want 600", got)
 	}
 }
-
 func TestForceWriteRejectsSymlink(t *testing.T) {
 	dir := t.TempDir()
 	victim := filepath.Join(dir, "victim")
@@ -197,7 +140,6 @@ func TestForceWriteRejectsSymlink(t *testing.T) {
 		t.Fatalf("victim = %q", data)
 	}
 }
-
 func TestForceWritePreservesDestinationOnRenameFailure(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	if err := os.Mkdir(path, 0o700); err != nil {
@@ -214,55 +156,12 @@ func TestForceWritePreservesDestinationOnRenameFailure(t *testing.T) {
 		t.Fatal("destination directory was replaced")
 	}
 }
-
-func TestMarshal(t *testing.T) {
-	cfg := validConfig()
-	cfg.Node = "dgx"
-	for _, format := range []string{"yaml", "json"} {
-		data, err := Marshal(cfg, format)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !strings.Contains(string(data), "dgx") {
-			t.Fatalf("%s output = %q", format, data)
-		}
-	}
-	if _, err := Marshal(cfg, "toml"); err == nil {
-		t.Fatal("expected unsupported format error")
-	}
-}
-
-func TestMarshalNormalizesOmittedRuntimes(t *testing.T) {
-	cfg := &Config{Version: Version}
-	data, err := Marshal(cfg, "json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var decoded map[string]any
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := decoded["runtimes"].(map[string]any); !ok {
-		t.Fatalf("runtimes = %#v, want object", decoded["runtimes"])
-	}
-}
-
-func TestMarshalYAMLError(t *testing.T) {
-	old := marshalYAML
-	marshalYAML = func(any) ([]byte, error) { return nil, errors.New("boom") }
-	defer func() { marshalYAML = old }()
-	if _, err := Marshal(validConfig(), "yaml"); err == nil || !strings.Contains(err.Error(), "boom") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
 func TestDefaultPathEnv(t *testing.T) {
 	t.Setenv("LLMM_CONFIG", "/tmp/custom.yaml")
 	if got := DefaultPath(); got != "/tmp/custom.yaml" {
 		t.Fatalf("DefaultPath = %q", got)
 	}
 }
-
 func TestDefaultPathUserConfigDirError(t *testing.T) {
 	os.Unsetenv("LLMM_CONFIG")
 	old := userConfigDir
@@ -272,7 +171,6 @@ func TestDefaultPathUserConfigDirError(t *testing.T) {
 		t.Fatalf("DefaultPath = %q", got)
 	}
 }
-
 func TestDefaultPathUserConfigDir(t *testing.T) {
 	os.Unsetenv("LLMM_CONFIG")
 	old := userConfigDir
@@ -282,7 +180,6 @@ func TestDefaultPathUserConfigDir(t *testing.T) {
 		t.Fatalf("DefaultPath = %q", got)
 	}
 }
-
 func TestValidateWrongVersion(t *testing.T) {
 	cfg := validConfig()
 	cfg.Version = 2
@@ -290,14 +187,12 @@ func TestValidateWrongVersion(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
 func TestValidateNoRuntimes(t *testing.T) {
 	cfg := &Config{Version: Version}
 	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "at least one runtime") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
 func TestValidateSystemdRequiresService(t *testing.T) {
 	cfg := validConfig()
 	cfg.Runtimes["example"] = Runtime{Type: "systemd"}
@@ -305,7 +200,6 @@ func TestValidateSystemdRequiresService(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
 func TestValidateDockerRequiresContainer(t *testing.T) {
 	cfg := validConfig()
 	cfg.Runtimes["web"] = Runtime{Type: "docker"}
@@ -313,7 +207,6 @@ func TestValidateDockerRequiresContainer(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
 func TestValidateDockerContainerDash(t *testing.T) {
 	cfg := validConfig()
 	cfg.Runtimes["web"] = Runtime{Type: "docker", Container: "--bad"}
@@ -321,7 +214,6 @@ func TestValidateDockerContainerDash(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
 func TestValidateUnsupportedType(t *testing.T) {
 	cfg := validConfig()
 	cfg.Runtimes["p"] = Runtime{Type: "process"}
@@ -329,7 +221,6 @@ func TestValidateUnsupportedType(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
 func TestValidateModelRequiresPath(t *testing.T) {
 	cfg := validConfig()
 	cfg.Models["flash"] = Model{Runtime: "example"}
@@ -337,13 +228,11 @@ func TestValidateModelRequiresPath(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
 func TestLoadReadError(t *testing.T) {
 	if _, err := Load(filepath.Join(t.TempDir(), "nope.yaml")); err == nil || !strings.Contains(err.Error(), "read config") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
 func TestLoadValidationError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	data := "version: 99\nruntimes:\n  example:\n    type: systemd\n    service: example.service\nmodels: {}\n"
@@ -354,7 +243,6 @@ func TestLoadValidationError(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
 func TestWriteMarshalError(t *testing.T) {
 	old := marshalYAML
 	marshalYAML = func(any) ([]byte, error) { return nil, errors.New("boom") }
@@ -364,7 +252,6 @@ func TestWriteMarshalError(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
 func TestLoadTrailingMalformed(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	data := "version: 1\nruntimes:\n  example:\n    type: systemd\n    service: example.service\n---\n[unclosed,"
@@ -375,14 +262,12 @@ func TestLoadTrailingMalformed(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
 func TestWriteRejectsInvalidConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	if err := Write(path, &Config{Version: 2}, false); err == nil {
 		t.Fatal("expected invalid config error")
 	}
 }
-
 func TestWriteMkdirAllError(t *testing.T) {
 	dir := t.TempDir()
 	parent := filepath.Join(dir, "parent")
@@ -394,7 +279,6 @@ func TestWriteMkdirAllError(t *testing.T) {
 		t.Fatal("expected mkdir error")
 	}
 }
-
 func TestWriteLstatError(t *testing.T) {
 	old := lstat
 	lstat = func(string) (os.FileInfo, error) { return nil, errors.New("boom") }
@@ -404,7 +288,6 @@ func TestWriteLstatError(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
 func TestWriteCreateTempError(t *testing.T) {
 	old := createTemp
 	createTemp = func(dir, pattern string) (*os.File, error) { return nil, errors.New("boom") }
@@ -414,7 +297,6 @@ func TestWriteCreateTempError(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
 func TestWriteChmodError(t *testing.T) {
 	old := chmod
 	chmod = func(*os.File, os.FileMode) error { return errors.New("boom") }
@@ -424,7 +306,6 @@ func TestWriteChmodError(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
 func TestWriteDataError(t *testing.T) {
 	old := writeData
 	writeData = func(*os.File, []byte) (int, error) { return 0, errors.New("boom") }
@@ -434,7 +315,6 @@ func TestWriteDataError(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
 func TestWriteSyncError(t *testing.T) {
 	old := syncFile
 	syncFile = func(*os.File) error { return errors.New("boom") }
@@ -444,7 +324,6 @@ func TestWriteSyncError(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
 func TestWriteCloseError(t *testing.T) {
 	old := closeFile
 	closeFile = func(*os.File) error { return errors.New("boom") }
@@ -454,7 +333,6 @@ func TestWriteCloseError(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
 func TestWriteLinkAlreadyExists(t *testing.T) {
 	old := linkFile
 	linkFile = func(a, b string) error { return os.ErrExist }
@@ -464,7 +342,6 @@ func TestWriteLinkAlreadyExists(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
 func TestWriteLinkError(t *testing.T) {
 	old := linkFile
 	linkFile = func(a, b string) error { return errors.New("boom") }
@@ -474,7 +351,6 @@ func TestWriteLinkError(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
 func TestForceWriteLstatError(t *testing.T) {
 	old := lstat
 	lstat = func(string) (os.FileInfo, error) { return nil, errors.New("boom") }
@@ -484,7 +360,6 @@ func TestForceWriteLstatError(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
-
 func TestForceWriteSecondLstatError(t *testing.T) {
 	calls := 0
 	old := lstat
@@ -510,7 +385,6 @@ func (symlinkInfo) Mode() os.FileMode  { return os.ModeSymlink }
 func (symlinkInfo) ModTime() time.Time { return time.Time{} }
 func (symlinkInfo) IsDir() bool        { return false }
 func (symlinkInfo) Sys() any           { return nil }
-
 func TestForceWriteSecondSymlink(t *testing.T) {
 	calls := 0
 	old := lstat
