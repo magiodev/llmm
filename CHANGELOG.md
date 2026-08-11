@@ -4,6 +4,7 @@ All notable changes are documented here. This project follows [Semantic Versioni
 
 ## [Unreleased]
 
+- Phase 1 contract freeze: `docs/contract.md` settles artifact representation, schema/versioning strategy, machine-vs-human output rules, `config show --format json` compatibility, default-model semantics, and explicit non-goals.
 - First-class model artifacts: multi-file layouts via a model-local `artifacts` list; `doctor` and `doctor --deep` now validate every declared artifact (path, size, SHA-256).
 - Explicit `default_model` in exported config: operator-declared default model ID, validated against `models`, emitted in YAML and JSON.
 - Machine-readable output: `--format text|json` on `status`, `models`, and `doctor`; JSON is deterministic, color-free, and preserves non-zero exit on failures.
