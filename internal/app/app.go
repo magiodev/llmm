@@ -86,7 +86,7 @@ func New(version string) *cobra.Command {
 	}
 	root.PersistentFlags().StringVar(&opts.configPath, "config", config.DefaultPath(), "path to config file")
 	root.PersistentFlags().BoolVarP(&opts.quiet, "quiet", "q", false, "suppress confirmation output")
-	root.AddCommand(configCommand(opts), doctorCommand(opts), statusCommand(opts), actionCommand(opts, "start"), actionCommand(opts, "stop"), actionCommand(opts, "restart"), modelsCommand(opts), installCommand(opts))
+	root.AddCommand(configCommand(opts), doctorCommand(opts), statusCommand(opts), actionCommand(opts, "start"), actionCommand(opts, "stop"), actionCommand(opts, "restart"), modelsCommand(opts), installCommand(opts), verifyCommand(opts))
 	return root
 }
 
