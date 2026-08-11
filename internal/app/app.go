@@ -164,6 +164,12 @@ func actionCommand(opts *options, action string) *cobra.Command {
 			if !ok {
 				return fmt.Errorf("unknown runtime %q", args[0])
 			}
+			if action == "start" || action == "restart" {
+				missing := preflightArtifacts(cfg, args[0])
+				if len(missing) > 0 {
+					return fmt.Errorf("cannot %s %s: model artifacts missing: %s", action, args[0], strings.Join(missing, ", "))
+				}
+			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), supervisorTimeout)
 			defer cancel()
 			if err := runtimeops.Action(ctx, rt, action); err != nil {
