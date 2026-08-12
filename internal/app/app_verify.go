@@ -29,17 +29,7 @@ func verifyCommand(opts *options) *cobra.Command {
 			var failures []string
 			var checks []doctorCheck
 			check := func(ok bool, label, detail string) {
-				checks = append(checks, doctorCheck{OK: ok, Label: label, Detail: detail})
-				if !ok {
-					failures = append(failures, label+": "+detail)
-				}
-				if format != "json" {
-					state := "ok"
-					if !ok {
-						state = "fail"
-					}
-					fmt.Fprintf(cmd.OutOrStdout(), "%-5s %-24s %s\n", state, label, detail)
-				}
+				emitCheck(cmd, format, &checks, &failures, ok, label, detail)
 			}
 			modelNames := make([]string, 0, len(cfg.Models))
 			for name := range cfg.Models {
@@ -48,9 +38,11 @@ func verifyCommand(opts *options) *cobra.Command {
 			sort.Strings(modelNames)
 			for _, name := range modelNames {
 				model := cfg.Models[name]
-				checkArtifact(cmd, check, "model "+name, model.Path, model.Size, model.SHA256)
+				label := "model " + name
+				checkArtifact(cmd, check, label, "sha256 "+label, model.Path, model.Size, model.SHA256, true)
 				for i, artifact := range model.Artifacts {
-					checkArtifact(cmd, check, fmt.Sprintf("model %s artifact %d", name, i), artifact.Path, artifact.Size, artifact.SHA256)
+					label := fmt.Sprintf("model %s artifact %d", name, i)
+					checkArtifact(cmd, check, label, "sha256 "+label, artifact.Path, artifact.Size, artifact.SHA256, true)
 				}
 			}
 			if format == "json" {
@@ -68,10 +60,27 @@ func verifyCommand(opts *options) *cobra.Command {
 	return command
 }
 
+// emitCheck records one check into checks/failures and prints it unless the
+// output format is json. Shared by doctor and verify.
+func emitCheck(cmd *cobra.Command, format string, checks *[]doctorCheck, failures *[]string, ok bool, label, detail string) {
+	*checks = append(*checks, doctorCheck{OK: ok, Label: label, Detail: detail})
+	if !ok {
+		*failures = append(*failures, label+": "+detail)
+	}
+	if format != "json" {
+		state := "ok"
+		if !ok {
+			state = "fail"
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "%-5s %-24s %s\n", state, label, detail)
+	}
+}
+
 // checkArtifact verifies one declared artifact: the path must exist as a
 // regular file, match the declared size when non-zero, and match the declared
-// SHA-256 when non-empty. ok is the aggregate success of every sub-check.
-func checkArtifact(cmd *cobra.Command, check func(bool, string, string), label, path string, size int64, sha string) {
+// SHA-256 when non-empty and hash is requested. label and shaLabel are the
+// emit labels for the path/size check and the digest check respectively.
+func checkArtifact(cmd *cobra.Command, emit func(bool, string, string), label, shaLabel, path string, size int64, sha string, hash bool) {
 	info, statErr := os.Stat(path)
 	ok := statErr == nil && info.Mode().IsRegular()
 	detail := path
@@ -79,11 +88,11 @@ func checkArtifact(cmd *cobra.Command, check func(bool, string, string), label, 
 		ok = info.Size() == size
 		detail = fmt.Sprintf("%s (%d bytes)", path, info.Size())
 	}
-	check(ok, label, detail)
-	if ok && sha != "" {
+	emit(ok, label, detail)
+	if hash && ok && sha != "" {
 		hashCtx, cancel := context.WithTimeout(cmd.Context(), deepHashTimeout)
 		sum, hashErr := fileSHA256(hashCtx, path)
 		cancel()
-		check(hashErr == nil && sum == strings.ToLower(sha), "sha256 "+label, sum)
+		emit(hashErr == nil && sum == strings.ToLower(sha), shaLabel, sum)
 	}
 }
