@@ -78,6 +78,53 @@ func TestPreflightStatError(t *testing.T) {
 	}
 }
 
+func TestPreflightArtifactMissing(t *testing.T) {
+	dir := t.TempDir()
+	model := filepath.Join(dir, "m.gguf")
+	if err := os.WriteFile(model, []byte("m"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	path := writeManifest(t, fmt.Sprintf("version: 1\nruntimes:\n  web:\n    type: systemd\n    service: web.service\nmodels:\n  m:\n    runtime: web\n    path: %s\n    artifacts:\n      - path: %s\n", model, filepath.Join(dir, "nope.bin")))
+	cfg := loadConfig(t, path)
+	if missing := preflightArtifacts(cfg, "web"); len(missing) != 1 || missing[0] != "m" {
+		t.Fatalf("missing = %v", missing)
+	}
+}
+
+func TestPreflightArtifactsWithArtifactPresent(t *testing.T) {
+	dir := t.TempDir()
+	model := filepath.Join(dir, "m.gguf")
+	artifact := filepath.Join(dir, "a.bin")
+	if err := os.WriteFile(model, []byte("m"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(artifact, []byte("a"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	path := writeManifest(t, fmt.Sprintf("version: 1\nruntimes:\n  web:\n    type: systemd\n    service: web.service\nmodels:\n  m:\n    runtime: web\n    path: %s\n    artifacts:\n      - path: %s\n", model, artifact))
+	cfg := loadConfig(t, path)
+	if missing := preflightArtifacts(cfg, "web"); len(missing) != 0 {
+		t.Fatalf("missing = %v", missing)
+	}
+}
+
+func TestPreflightArtifactNotRegular(t *testing.T) {
+	dir := t.TempDir()
+	model := filepath.Join(dir, "m.gguf")
+	artifactDir := filepath.Join(dir, "a")
+	if err := os.WriteFile(model, []byte("m"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(artifactDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path := writeManifest(t, fmt.Sprintf("version: 1\nruntimes:\n  web:\n    type: systemd\n    service: web.service\nmodels:\n  m:\n    runtime: web\n    path: %s\n    artifacts:\n      - path: %s\n", model, artifactDir))
+	cfg := loadConfig(t, path)
+	if missing := preflightArtifacts(cfg, "web"); len(missing) != 1 {
+		t.Fatalf("missing = %v", missing)
+	}
+}
+
 func TestActionStartMissingArtifact(t *testing.T) {
 	dir := t.TempDir()
 	path := writeManifest(t, fmt.Sprintf("version: 1\nruntimes:\n  web:\n    type: systemd\n    service: web.service\nmodels:\n  m:\n    runtime: web\n    path: %s\n", filepath.Join(dir, "nope.gguf")))
