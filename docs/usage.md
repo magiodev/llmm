@@ -308,7 +308,7 @@ llmm downloads the artifact to the model's declared `path`, verifies the declare
 
 ## Preflight on start
 
-`llmm start <runtime>` (and `restart`) gates the action on artifact readiness: every model bound to that runtime must have its declared artifact present as a regular file, otherwise the runtime is not started and the command fails with the missing models listed. `stop` does not require artifacts. This closes the loop between declared (manifest), installed (on disk), and running (supervisor) state.
+`llmm start <runtime>` (and `restart`) gates the action on artifact readiness: every model bound to that runtime must have its declared primary path and each declared `artifacts` entry present as a regular file, otherwise the runtime is not started and the command fails with the missing models listed. `stop` does not require artifacts. This closes the loop between declared (manifest), installed (on disk), and running (supervisor) state.
 ## Run diagnostics
 
 ```bash
