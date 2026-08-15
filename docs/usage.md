@@ -364,6 +364,16 @@ Doctor does not:
 
 Pair doctor with `status` and a real API probe when validating a deployment.
 
+## Verify declared artifacts
+
+```bash
+llmm verify
+```
+
+`verify` is a standalone artifact-integrity check, independent of doctor's config, runtime, and executable checks. For every declared model it verifies the primary path and each declared `artifacts` entry: the path is a regular file, the on-disk size matches the declared `size` when present, and the SHA-256 digest matches `sha256` when present. Models and artifacts without a declared `size` or `sha256` skip those checks.
+
+`verify --format json` emits the same contract-aligned shape as doctor: an overall `success` boolean plus a `checks` array with `ok`, `label`, and `detail` per artifact. A failing verify exits non-zero even in JSON mode.
+
 ## Quiet mode
 
 The global `--quiet` or `-q` flag suppresses confirmation output for commands that explicitly support it, including successful config initialization, validation, and lifecycle actions. Errors still print and retain non-zero exits.

@@ -86,7 +86,7 @@ func New(version string) *cobra.Command {
 	}
 	root.PersistentFlags().StringVar(&opts.configPath, "config", config.DefaultPath(), "path to config file")
 	root.PersistentFlags().BoolVarP(&opts.quiet, "quiet", "q", false, "suppress confirmation output")
-	root.AddCommand(configCommand(opts), doctorCommand(opts), statusCommand(opts), actionCommand(opts, "start"), actionCommand(opts, "stop"), actionCommand(opts, "restart"), modelsCommand(opts), installCommand(opts))
+	root.AddCommand(configCommand(opts), doctorCommand(opts), statusCommand(opts), actionCommand(opts, "start"), actionCommand(opts, "stop"), actionCommand(opts, "restart"), modelsCommand(opts), installCommand(opts), verifyCommand(opts))
 	return root
 }
 
@@ -285,17 +285,7 @@ func doctorCommand(opts *options) *cobra.Command {
 			var failures []string
 			var checks []doctorCheck
 			check := func(ok bool, label, detail string) {
-				checks = append(checks, doctorCheck{OK: ok, Label: label, Detail: detail})
-				if !ok {
-					failures = append(failures, label+": "+detail)
-				}
-				if format != "json" {
-					state := "ok"
-					if !ok {
-						state = "fail"
-					}
-					fmt.Fprintf(cmd.OutOrStdout(), "%-5s %-24s %s\n", state, label, detail)
-				}
+				emitCheck(cmd, format, &checks, &failures, ok, label, detail)
 			}
 			check(true, "config", opts.configPath)
 			for _, name := range runtimeops.Names(cfg) {
@@ -327,35 +317,9 @@ func doctorCommand(opts *options) *cobra.Command {
 			sort.Strings(modelNames)
 			for _, name := range modelNames {
 				model := cfg.Models[name]
-				info, statErr := os.Stat(model.Path)
-				ok := statErr == nil && info.Mode().IsRegular()
-				detail := model.Path
-				if ok && model.Size > 0 {
-					ok = info.Size() == model.Size
-					detail = fmt.Sprintf("%s (%d bytes)", model.Path, info.Size())
-				}
-				check(ok, "model "+name, detail)
-				if deep && ok && model.SHA256 != "" {
-					hashCtx, cancel := context.WithTimeout(cmd.Context(), deepHashTimeout)
-					sum, hashErr := fileSHA256(hashCtx, model.Path)
-					cancel()
-					check(hashErr == nil && sum == strings.ToLower(model.SHA256), "sha256 "+name, sum)
-				}
+				checkArtifact(cmd, check, "model "+name, "sha256 "+name, model.Path, model.Size, model.SHA256, deep)
 				for i, artifact := range model.Artifacts {
-					info, statErr := os.Stat(artifact.Path)
-					ok := statErr == nil && info.Mode().IsRegular()
-					detail := artifact.Path
-					if ok && artifact.Size > 0 {
-						ok = info.Size() == artifact.Size
-						detail = fmt.Sprintf("%s (%d bytes)", artifact.Path, info.Size())
-					}
-					check(ok, "artifact "+name, detail)
-					if deep && ok && artifact.SHA256 != "" {
-						hashCtx, cancel := context.WithTimeout(cmd.Context(), deepHashTimeout)
-						sum, hashErr := fileSHA256(hashCtx, artifact.Path)
-						cancel()
-						check(hashErr == nil && sum == strings.ToLower(artifact.SHA256), fmt.Sprintf("sha256 %s artifact %d", name, i), sum)
-					}
+					checkArtifact(cmd, check, "artifact "+name, fmt.Sprintf("sha256 %s artifact %d", name, i), artifact.Path, artifact.Size, artifact.SHA256, deep)
 				}
 			}
 			if format == "json" {
