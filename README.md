@@ -20,7 +20,7 @@
 
 Model servers already have enough moving parts. CUDA, model files, containers, systemd units, API endpoints, context limits, checksums: the information exists, but it tends to be scattered across shell history and half-remembered paths.
 
-`llmm` puts the facts in one strict YAML manifest. It checks declared host prerequisites, reports runtime state, controls existing supervisors, and exports the manifest for trusted clients. It does not install runtimes, download models, wrap APIs, or run in the background.
+`llmm` puts the facts in one strict YAML manifest. It checks declared host prerequisites, reports runtime state, controls existing supervisors, and exports the manifest for trusted clients. It does not install runtimes, wrap APIs, or run in the background; `llmm install` fetches and verifies a declared model artifact onto the node.
 
 ```text
 $ llmm status
@@ -221,6 +221,7 @@ Common node shapes ship as separate examples: [`examples/systemd-one.yaml`](exam
 | `llmm doctor --deep` | Also hash model files and compare SHA-256 values |
 | `llmm doctor --format json` | Emit explicit check objects plus an overall `success` boolean |
 | `llmm models` | List model ID, runtime, and path |
+| `llmm install <model>` | Fetch a declared model from its `source`, verify size/SHA-256, and record installed state |
 | `llmm models --format json` | Emit model objects with limits, default marker, and artifacts |
 | `llmm status [runtime]` | Show every runtime or one named runtime |
 | `llmm status --format json` | Emit runtime state objects for automation |

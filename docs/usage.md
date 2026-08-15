@@ -288,12 +288,23 @@ The columns are:
 
 Models are sorted by ID for stable output.
 
+## Install a model
+
+A declared model with a `source` URL can be fetched onto the node:
+
+```bash
+llmm install <model>
+```
+
+llmm downloads the artifact to the model's declared `path`, verifies the declared `size` and `sha256` when present, then atomically publishes it (temp file + rename) so a partial or failed download never leaves half-written state at the final path. On success it records the installed origin and integrity in a machine-managed `installed.yaml` next to your manifest. That state file is separate from the human-edited manifest and is additive and versioned.
+
+`source` must be an absolute `http` or `https` URL without embedded credentials. Models without a `source` cannot be installed.
+
 `models --format json` emits an array of model objects with the primary path, advertised limits, a `default` marker when the model ID equals `default_model`, and any declared artifacts:
 
 ```json
 [{"name":"example-model","runtime":"example","path":"/models/example-model.gguf","context":262144,"output":8192,"default":true}]
 ```
-
 ## Run diagnostics
 
 ```bash
