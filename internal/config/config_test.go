@@ -61,6 +61,21 @@ func TestValidate(t *testing.T) {
 			m.Artifacts = []Artifact{{Path: "/a", SHA256: "nope"}}
 			c.Models["flash"] = m
 		}, "artifact 0 sha256 must be 64 hexadecimal"},
+		{"source whitespace", func(c *Config) {
+			m := c.Models["flash"]
+			m.Source = "owner/my model"
+			c.Models["flash"] = m
+		}, "source must not contain whitespace"},
+		{"source leading dash", func(c *Config) {
+			m := c.Models["flash"]
+			m.Source = "-owner/model"
+			c.Models["flash"] = m
+		}, "source must not start with '-'"},
+		{"source credentials", func(c *Config) {
+			m := c.Models["flash"]
+			m.Source = "https://user:secret@example.test/v1"
+			c.Models["flash"] = m
+		}, "source must not contain credentials"},
 		{"default model unknown", func(c *Config) {
 			c.DefaultModel = "missing"
 		}, "default_model \"missing\" references unknown model"},
@@ -73,6 +88,15 @@ func TestValidate(t *testing.T) {
 				t.Fatalf("error = %v, want %q", err, test.want)
 			}
 		})
+	}
+}
+func TestValidateSourceOK(t *testing.T) {
+	cfg := validConfig()
+	m := cfg.Models["flash"]
+	m.Source = "owner/example-model-gguf"
+	cfg.Models["flash"] = m
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid source rejected: %v", err)
 	}
 }
 func TestWriteLoadAndKnownFields(t *testing.T) {
