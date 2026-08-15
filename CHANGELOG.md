@@ -12,6 +12,7 @@ All notable changes are documented here. This project follows [Semantic Versioni
 - `llmm verify`: standalone declared-artifact integrity check (path, size, SHA-256) with `--format json` contract output.
 - Provenance and integrity rules: `config validate` pins the `source` provenance field (no whitespace, no leading `-`, no credentials); `source` is exported in `config show` YAML/JSON.
 - First-run UX: README restructured around declare → stock → validate → export, a terminal demo sequence, and example manifests for common node shapes (single systemd, multi-systemd, Docker UI, multi-file models).
+- `llmm installed`: report installed-artifact state (installed/missing) with a summary.
 - Docs and discoverability: README overhaul, contributor/security/conduct guides, Makefile targets.
 - CI: coverage gate enforcing statement, block (branch), and line thresholds.
 - Tests: hardened branch coverage across `app`, `config`, and `runtime`.

@@ -224,6 +224,7 @@ Common node shapes ship as separate examples: [`examples/systemd-one.yaml`](exam
 | `llmm install <model>` | Fetch a declared model from its `source`, verify size/SHA-256, and record installed state |
 | `llmm models --format json` | Emit model objects with limits, default marker, and artifacts |
 | `llmm verify` | Verify declared artifact integrity (path, size, SHA-256) |
+| `llmm installed` | Report machine-managed installed-artifact state (installed/missing) with a summary |
 | `llmm status [runtime]` | Show every runtime or one named runtime |
 | `llmm status --format json` | Emit runtime state objects for automation |
 | `llmm start <runtime>` | Start through the configured native supervisor |
