@@ -169,6 +169,15 @@ func actionCommand(opts *options, action string) *cobra.Command {
 				if len(missing) > 0 {
 					return fmt.Errorf("cannot %s %s: model artifacts missing: %s", action, args[0], strings.Join(missing, ", "))
 				}
+				stopped, stopErr := stopOtherActiveModelRuntimes(cmd, cfg, args[0])
+				if stopErr != nil {
+					return stopErr
+				}
+				for _, name := range stopped {
+					if !opts.quiet {
+						fmt.Fprintf(cmd.OutOrStdout(), "stopped %s (starting %s, exclusive)\n", name, args[0])
+					}
+				}
 			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), supervisorTimeout)
 			defer cancel()
@@ -209,24 +218,19 @@ func statusCommand(opts *options) *cobra.Command {
 				ctx, cancel := context.WithTimeout(cmd.Context(), supervisorTimeout)
 				state, statusErr := runtimeops.Status(ctx, cfg.Runtimes[name])
 				cancel()
-				entries = append(entries, runtimeStatus{Name: name, Type: cfg.Runtimes[name].Type, State: state})
 				if statusErr != nil {
-					if format == "json" {
-						entries[len(entries)-1].State = "error"
-					} else {
-						fmt.Fprintf(cmd.OutOrStdout(), "%-16s error\n", name)
-					}
+					entries = append(entries, runtimeStatus{Name: name, Type: cfg.Runtimes[name].Type, State: "error"})
 					failures = append(failures, name+": "+statusErr.Error())
 					continue
 				}
-				if format != "json" {
-					fmt.Fprintf(cmd.OutOrStdout(), "%-16s %s\n", name, state)
-				}
+				entries = append(entries, runtimeStatus{Name: name, Type: cfg.Runtimes[name].Type, State: state})
 			}
 			if format == "json" {
 				if err := writeJSON(cmd, entries); err != nil {
 					return err
 				}
+			} else {
+				fmt.Fprint(cmd.OutOrStdout(), renderStatus(cfg, entries, useColor()))
 			}
 			if len(failures) > 0 {
 				return errors.New(strings.Join(failures, "; "))
