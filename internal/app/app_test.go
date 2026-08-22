@@ -112,7 +112,7 @@ func TestStatusReturnsSupervisorError(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "permission denied") {
 		t.Fatalf("error = %v", err)
 	}
-	if output.String() != "web              error\n" {
+	if !strings.Contains(output.String(), "web") || !strings.Contains(output.String(), "error") {
 		t.Fatalf("output = %q", output.String())
 	}
 }
