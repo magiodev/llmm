@@ -4,6 +4,8 @@ All notable changes are documented here. This project follows [Semantic Versioni
 
 ## [Unreleased]
 
+- `capabilities` on model entries: vendor-neutral capability list (`image`, `video`, `audio`, `pdf`, `tools`) validated by `config validate` and exported by `config show` for client generation.
+
 - `llmm install <model>`: fetch a declared model from its `source`, verify size/SHA-256, atomic publish, and record machine-managed installed state (`installed.yaml`). Downloads resume from `.part` on retry.
 - Phase 1 contract freeze: `docs/contract.md` settles artifact representation, schema/versioning strategy, machine-vs-human output rules, `config show --format json` compatibility, default-model semantics, and explicit non-goals.
 - First-class model artifacts: multi-file layouts via a model-local `artifacts` list; `doctor` and `doctor --deep` now validate every declared artifact (path, size, SHA-256).

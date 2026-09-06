@@ -257,6 +257,7 @@ models:
 | `context` | integer | no | Advertised context-window limit; may not be negative. |
 | `output` | integer | no | Advertised output-token limit; may not be negative. |
 | `reasoning` | list of strings | no | Advertised reasoning levels (e.g. `[none, high]`). Entries must be non-empty strings. |
+| `capabilities` | list of strings | no | Vendor-neutral model capabilities from `image`, `video`, `audio`, `pdf`, `tools` (text is implicit; `reasoning` carries effort levels). Unknown values are rejected. |
 
 ### `runtime`
 
@@ -368,6 +369,19 @@ reasoning: [none, high]
 ```
 
 Advertised reasoning levels for clients, passed through verbatim. Clients use them to present or cycle reasoning modes; llmm does not interpret the values. Entries must be non-empty strings.
+
+### `capabilities`
+
+```yaml
+capabilities: [image, video, tools]
+```
+
+Vendor-neutral input/feature capabilities a client may rely on: `image`, `video`,
+`audio`, `pdf` (input modalities) and `tools` (function calling / tool use).
+Text is implicit. Effort-level reasoning is declared in `reasoning`, not here.
+Entries are validated against the known set; unknown or empty values are
+rejected by `config validate`. Clients map these generically to their own
+model metadata (attachment support, modality lists, tool-call flags).
 
 ## Minimal valid manifest
 
