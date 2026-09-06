@@ -41,6 +41,16 @@ func TestValidate(t *testing.T) {
 		{"credential endpoint", func(c *Config) {
 			c.Runtimes["example"] = Runtime{Type: "systemd", Service: "example.service", Endpoint: "https://user:secret@example.test/v1"}
 		}, "must not contain credentials"},
+		{"empty capability", func(c *Config) {
+			m := c.Models["flash"]
+			m.Capabilities = []string{""}
+			c.Models["flash"] = m
+		}, "empty capability"},
+		{"unknown capability", func(c *Config) {
+			m := c.Models["flash"]
+			m.Capabilities = []string{"hologram"}
+			c.Models["flash"] = m
+		}, `unknown capability "hologram"`},
 		{"empty reasoning level", func(c *Config) {
 			m := c.Models["flash"]
 			m.Reasoning = []string{""}

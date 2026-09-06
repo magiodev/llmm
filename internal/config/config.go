@@ -57,16 +57,17 @@ type Artifact struct {
 }
 
 type Model struct {
-	Runtime   string     `yaml:"runtime" json:"runtime"`
-	Format    string     `yaml:"format" json:"format"`
-	Path      string     `yaml:"path" json:"path"`
-	Artifacts []Artifact `yaml:"artifacts,omitempty" json:"artifacts,omitempty"`
-	Source    string     `yaml:"source,omitempty" json:"source,omitempty"`
-	SHA256    string     `yaml:"sha256,omitempty" json:"sha256,omitempty"`
-	Size      int64      `yaml:"size,omitempty" json:"size,omitempty"`
-	Context   int        `yaml:"context,omitempty" json:"context,omitempty"`
-	Output    int        `yaml:"output,omitempty" json:"output,omitempty"`
-	Reasoning []string   `yaml:"reasoning,omitempty" json:"reasoning,omitempty"`
+	Runtime      string     `yaml:"runtime" json:"runtime"`
+	Format       string     `yaml:"format" json:"format"`
+	Path         string     `yaml:"path" json:"path"`
+	Artifacts    []Artifact `yaml:"artifacts,omitempty" json:"artifacts,omitempty"`
+	Source       string     `yaml:"source,omitempty" json:"source,omitempty"`
+	SHA256       string     `yaml:"sha256,omitempty" json:"sha256,omitempty"`
+	Size         int64      `yaml:"size,omitempty" json:"size,omitempty"`
+	Context      int        `yaml:"context,omitempty" json:"context,omitempty"`
+	Output       int        `yaml:"output,omitempty" json:"output,omitempty"`
+	Reasoning    []string   `yaml:"reasoning,omitempty" json:"reasoning,omitempty"`
+	Capabilities []string   `yaml:"capabilities,omitempty" json:"capabilities,omitempty"`
 }
 
 func Marshal(c *Config, format string) ([]byte, error) {
@@ -115,6 +116,17 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 	return &cfg, nil
+}
+
+// KnownCapabilities is the vendor-neutral set a model entry may declare.
+// Text is implicit (every served model speaks text); reasoning is a separate
+// field carrying effort levels rather than a capability.
+var KnownCapabilities = map[string]bool{
+	"image": true,
+	"video": true,
+	"audio": true,
+	"pdf":   true,
+	"tools": true,
 }
 
 func (c *Config) normalize() {
@@ -193,6 +205,13 @@ func (c *Config) Validate() error {
 			digest, err := hex.DecodeString(model.SHA256)
 			if err != nil || len(digest) != 32 {
 				problems = append(problems, fmt.Sprintf("model %q sha256 must be 64 hexadecimal characters", name))
+			}
+		}
+		for _, cap := range model.Capabilities {
+			if strings.TrimSpace(cap) == "" {
+				problems = append(problems, fmt.Sprintf("model %q has an empty capability", name))
+			} else if !KnownCapabilities[cap] {
+				problems = append(problems, fmt.Sprintf("model %q has unknown capability %q", name, cap))
 			}
 		}
 		if model.Source != "" {
